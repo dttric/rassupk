@@ -1,0 +1,8 @@
+{
+  "name": "Расписание СибУПК",
+  "description": "Удобное и быстрое приложение для просмотра расписания занятий Сибирского университета потребительской кооперации (СибУПК) по дням и группам.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
