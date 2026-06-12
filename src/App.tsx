@@ -52,6 +52,16 @@ interface SavedPreferences {
   groupLabel: string;
 }
 
+// Helper to visually shorten group names
+function shortenGroupName(name: string): string {
+  if (!name) return "";
+  const idx = name.indexOf("(");
+  if (idx !== -1) {
+    return name.substring(0, idx).trim();
+  }
+  return name;
+}
+
 // Helper to convert date to "DD.MM.YYYY"
 function formatDateStr(date: Date): string {
   const dd = String(date.getDate()).padStart(2, "0");
@@ -153,6 +163,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isWizardMode, setIsWizardMode] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<"day" | "week">("day"); // 'day' timeline or full fortnight stacked list
+  const [favorites, setFavorites] = useState<SavedPreferences[]>([]);
 
   // Active clock state
   const [currentLocalTime, setCurrentLocalTime] = useState<string>("");
@@ -181,6 +192,16 @@ export default function App() {
   // --- STAGE Loading logic ---
   // On Mount: Detect saved group preferences or load initial Study Forms
   useEffect(() => {
+    // Load favorite groups
+    const savedFavs = localStorage.getItem("sibupk_favorite_groups");
+    if (savedFavs) {
+      try {
+        setFavorites(JSON.parse(savedFavs));
+      } catch (err) {
+        console.error("Failed to parse favorite groups", err);
+      }
+    }
+
     const saved = localStorage.getItem("sibupk_selected_schedule");
     if (saved) {
       try {
@@ -203,6 +224,42 @@ export default function App() {
       loadFormOptions();
     }
   }, []);
+
+  // Load favorite group schedule directly
+  const loadFavoriteGroup = (group: SavedPreferences) => {
+    setIdForma(group.id_Forma);
+    setIdFak(group.id_Fak);
+    setKurs(group.Kurs);
+    setNamePodGrup(group.NamePodGrup);
+    setIsWizardMode(false);
+    
+    // Fetch schedule for this group
+    fetchFullDataAndSchedule(group);
+  };
+
+  const isCurrentGroupFavorite = useMemo(() => {
+    return favorites.some((f) => f.NamePodGrup === NamePodGrup);
+  }, [favorites, NamePodGrup]);
+
+  const toggleFavorite = () => {
+    if (!NamePodGrup) return;
+    let updated: SavedPreferences[];
+    if (isCurrentGroupFavorite) {
+      updated = favorites.filter((f) => f.NamePodGrup !== NamePodGrup);
+    } else {
+      const newFav: SavedPreferences = {
+        id_Forma,
+        id_Fak,
+        Kurs,
+        NamePodGrup,
+        RangeNedel,
+        groupLabel: NamePodGrup
+      };
+      updated = [...favorites, newFav];
+    }
+    setFavorites(updated);
+    localStorage.setItem("sibupk_favorite_groups", JSON.stringify(updated));
+  };
 
   const loadFormOptions = async () => {
     setLoading(true);
@@ -547,6 +604,7 @@ export default function App() {
       if (dateToSelect) {
         setSelectedDate(dateToSelect);
       }
+      setRangeNedel(weekVal);
       return;
     }
 
@@ -690,6 +748,7 @@ export default function App() {
 
   // Navigate directly to today's date in academic year
   const handleJumpToToday = () => {
+    setViewMode("day");
     const today = new Date();
     const todayStr = formatDateStr(today);
     const foundDateInstance = academicYearDates.find((d) => formatDateStr(d) === todayStr);
@@ -715,14 +774,17 @@ export default function App() {
 
   // Smooth scroll active calendar day icon into visibility
   useEffect(() => {
-    if (selectedDate) {
-      const activeStr = formatDateStr(selectedDate);
-      const el = document.getElementById(`academic_day_btn_${activeStr}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
-      }
+    if (viewMode === "day" && selectedDate) {
+      const timer = setTimeout(() => {
+        const activeStr = formatDateStr(selectedDate);
+        const el = document.getElementById(`academic_day_btn_${activeStr}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [selectedDate, academicYearDates]);
+  }, [selectedDate, academicYearDates, viewMode]);
 
   // Current active loaded week range (for "По неделям" or week layout display)
   const currentActiveWeekDates = useMemo(() => {
@@ -846,16 +908,31 @@ export default function App() {
 
           {/* User preferences display (State Toggle) */}
           {!isWizardMode && NamePodGrup && (
-            <div className="flex items-center gap-3 self-start md:self-auto bg-gray-50 border border-gray-200 rounded-none p-2.5" id="saved_meta_panel">
+            <div className="flex flex-wrap items-center gap-3 self-start md:self-auto bg-gray-50 border border-gray-200 rounded-none p-2.5" id="saved_meta_panel">
               <div className="text-left">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Выбранная группа</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-slate-500">Выбранная группа</p>
                 <div className="text-xs font-bold text-slate-900 uppercase tracking-tight line-clamp-1 max-w-[200px]" title={NamePodGrup}>
-                  {NamePodGrup}
+                  {shortenGroupName(NamePodGrup)}
                 </div>
               </div>
+
+              {/* Favorites toggle star button */}
+              <button
+                onClick={toggleFavorite}
+                className={`px-2.5 py-1.5 border text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all rounded-none flex items-center gap-1 ${
+                  isCurrentGroupFavorite
+                    ? "bg-amber-500 border-amber-600 text-white hover:bg-amber-600"
+                    : "bg-white border-gray-250 text-gray-500 hover:bg-gray-100 hover:text-slate-900"
+                }`}
+                id="toggle_favorite_btn"
+                title={isCurrentGroupFavorite ? "Удалить из избранного" : "Добавить в избранное"}
+              >
+                {isCurrentGroupFavorite ? "★ В избранном" : "☆ В избранное"}
+              </button>
+
               <button
                 onClick={resetGroupPreference}
-                className="ml-2 px-3 py-1.5 bg-white hover:bg-gray-100 text-blue-700 border border-gray-200 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none"
+                className="px-3 py-1.5 bg-white hover:bg-gray-100 text-blue-700 border border-gray-200 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none"
                 id="reset_preference_btn"
               >
                 Сменить
@@ -868,6 +945,50 @@ export default function App() {
       {/* Main Container Workspace */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6" id="app_workspace">
         
+        {/* Favorite Groups Quick Bar */}
+        {favorites.length > 0 && (
+          <div className="mb-6 bg-white border border-gray-200 p-4 rounded-none shadow-none flex flex-col gap-2" id="favorites_bar">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Bookmark className="w-3.5 h-3.5 text-blue-700 fill-blue-700" />
+                Избранные группы ({favorites.length})
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {favorites.map((fav) => {
+                const isActive = !isWizardMode && NamePodGrup === fav.NamePodGrup;
+                return (
+                  <div key={fav.NamePodGrup} className="flex items-center border border-gray-200" id={`fav_item_${fav.NamePodGrup.replace(/\s+/g, '_')}`}>
+                    <button
+                      onClick={() => loadFavoriteGroup(fav)}
+                      className={`text-xs font-bold uppercase tracking-tight px-3 py-1.5 transition-all cursor-pointer rounded-none flex items-center gap-1.5 border-none ${
+                        isActive
+                          ? "bg-blue-700 text-white font-extrabold"
+                          : "bg-gray-50 text-slate-800 hover:bg-gray-100"
+                      }`}
+                      id={`fav_btn_${fav.NamePodGrup}`}
+                    >
+                      <span>{shortenGroupName(fav.NamePodGrup)}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const updated = favorites.filter((f) => f.NamePodGrup !== fav.NamePodGrup);
+                        setFavorites(updated);
+                        localStorage.setItem("sibupk_favorite_groups", JSON.stringify(updated));
+                      }}
+                      className="p-1.5 border-l border-gray-200 bg-white hover:bg-rose-50 text-gray-400 hover:text-rose-500 transition-colors cursor-pointer rounded-none border-t-0 border-b-0 border-r-0"
+                      title="Удалить из избранного"
+                      id={`fav_del_btn_${fav.NamePodGrup}`}
+                    >
+                      <span className="text-xs font-bold px-1 select-none">×</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Error notification banner */}
         {errorMessage && (
           <div className="mb-6 bg-rose-50 border border-rose-100 rounded-xl p-4 text-sm text-rose-800 flex items-start gap-3 shadow-md shadow-rose-50" id="error_toast">
@@ -1015,7 +1136,7 @@ export default function App() {
                     >
                       <option value="">-- Выберите группу --</option>
                       {groupsList.map((g) => (
-                        <option key={g.value} value={g.value}>{g.label}</option>
+                        <option key={g.value} value={g.value}>{shortenGroupName(g.label)}</option>
                       ))}
                     </select>
                   </motion.div>
