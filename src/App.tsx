@@ -1636,7 +1636,7 @@ export default function App() {
           </div>
         </div>
         
-        <p className="font-bold uppercase tracking-wider text-slate-800 text-[10px]">Система просмотра расписания Сибирского Университета Потребительской Кооперации (СибУПК)</p>
+        
         <div className="max-w-md mx-auto px-4 flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-gray-400">
           <CheckCircle className="w-3.5 h-3.5 text-blue-700 shrink-0" />
           <span>Синхронизация с системой вуза выполнена</span>
