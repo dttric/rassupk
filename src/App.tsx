@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { Analytics } from "@vercel/analytics/react";
 import {
   Calendar,
   Clock,
@@ -1641,6 +1642,7 @@ export default function App() {
           <span>Синхронизация с системой вуза выполнена</span>
         </div>
       </footer>
+      <Analytics />
     </div>
   );
 }
