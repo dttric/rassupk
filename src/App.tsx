@@ -405,8 +405,8 @@ export default function App() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      // Load current weeks & schedule
-      const res = await fetch("/api/schedule", {
+      // Step 1: Fetch ALL week options (no RangeNedel passed) to ensure we always have all calendar dates
+      const resWeeks = await fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -414,19 +414,49 @@ export default function App() {
           id_Fak: pref.id_Fak,
           Kurs: pref.Kurs,
           NamePodGrup: pref.NamePodGrup,
-          RangeNedel: pref.RangeNedel
         }),
       });
-      const data = await res.json();
-      if (data.success) {
-        const ws = data.options?.weeks || [];
-        setWeeksList(ws);
-        setScheduleData(data.schedule || []);
-        setLoadedWeeks([pref.RangeNedel]);
-        
+      const dataWeeks = await resWeeks.json();
+      
+      let ws: Option[] = [];
+      if (dataWeeks.success && dataWeeks.options?.weeks && dataWeeks.options.weeks.length > 0) {
+        ws = dataWeeks.options.weeks;
+      }
+
+      // Step 2: Determine which week contains today's date dynamically, fallback to pref.RangeNedel
+      const today = new Date();
+      const currentRealWeek = findCurrentWeekRange(ws, today);
+      const targetWeek = currentRealWeek || pref.RangeNedel || (ws.length > 0 ? ws[0].value : "");
+
+      // Step 3: Fetch the schedule specifically for targetWeek
+      const resSched = await fetch("/api/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id_Forma: pref.id_Forma,
+          id_Fak: pref.id_Fak,
+          Kurs: pref.Kurs,
+          NamePodGrup: pref.NamePodGrup,
+          RangeNedel: targetWeek,
+        }),
+      });
+      const dataSched = await resSched.json();
+
+      if (dataSched.success) {
+        const finalWeeks = ws.length > 0 ? ws : (dataSched.options?.weeks || []);
+        setWeeksList(finalWeeks);
+        setScheduleData(dataSched.schedule || []);
+        setLoadedWeeks([targetWeek]);
+        setRangeNedel(targetWeek);
+
+        // Update localStorage with targetWeek
+        const updatedPref = { ...pref, RangeNedel: targetWeek };
+        localStorage.setItem("sibupk_selected_schedule", JSON.stringify(updatedPref));
+
+        // Compute all academic dates
         const allDates: Date[] = [];
         const dateStringsSeen = new Set<string>();
-        ws.forEach((wk: Option) => {
+        finalWeeks.forEach((wk: Option) => {
           const dates = generateRangeDates(wk.value);
           dates.forEach((d) => {
             const str = formatDateStr(d);
@@ -437,10 +467,43 @@ export default function App() {
           });
         });
         allDates.sort((a, b) => a.getTime() - b.getTime());
-        
-        setSelectedDate(findDefaultStudyDate(allDates));
+
+        // Select the appropriate day: today if it belongs to targetWeek, or default study day
+        const todayStr = formatDateStr(today);
+        const hasToday = allDates.some((d) => formatDateStr(d) === todayStr);
+        if (hasToday) {
+          const todayDate = allDates.find((d) => formatDateStr(d) === todayStr);
+          
+          // Check if todayDate is in targetWeek
+          const findWeekForDateLocal = (testDate: Date, wsArray: Option[]): string | null => {
+            for (const wk of wsArray) {
+              const match = wk.value.match(/(\d{2})\.(\d{2})\.(\d{4})\s*-\s*(\d{2})\.(\d{2})\.(\d{4})/);
+              if (match) {
+                const d1 = new Date(parseInt(match[3]), parseInt(match[2]) - 1, parseInt(match[1]));
+                const d2 = new Date(parseInt(match[6]), parseInt(match[5]) - 1, parseInt(match[4]));
+                d1.setHours(0, 0, 0, 0);
+                d2.setHours(23, 59, 59, 999);
+                if (testDate >= d1 && testDate <= d2) {
+                  return wk.value;
+                }
+              }
+            }
+            return null;
+          };
+
+          const parentWeekOfToday = todayDate ? findWeekForDateLocal(todayDate, finalWeeks) : null;
+          if (parentWeekOfToday === targetWeek && todayDate) {
+            setSelectedDate(todayDate);
+          } else {
+            const targetWeekDates = generateRangeDates(targetWeek);
+            setSelectedDate(findDefaultStudyDate(targetWeekDates));
+          }
+        } else {
+          const targetWeekDates = generateRangeDates(targetWeek);
+          setSelectedDate(findDefaultStudyDate(targetWeekDates));
+        }
       } else {
-        throw new Error(data.error || "Не удалось загрузить расписание");
+        throw new Error(dataSched.error || "Не удалось загрузить таблицу расписания");
       }
     } catch (err: any) {
       setErrorMessage(err.message || "Ошибка при подключении к сервису");
