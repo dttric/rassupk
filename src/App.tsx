@@ -1031,9 +1031,9 @@ export default function App() {
                   <Sparkles className="w-3.5 h-3.5 text-blue-200" />
                   Информационная система
                 </div>
-                <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">Добро пожаловать к расписанию СибУПК</h2>
+                <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">Добро пожаловать на RASSUPK</h2>
                 <p className="text-xs md:text-sm text-blue-100 mt-2 leading-relaxed font-medium uppercase tracking-wider opacity-90">
-                  Укажите параметры обучения для быстрой синхронизации напрямую с ведомостями вуза.
+                  Укажите параметры обучения для быстрой синхронизации напрямую с сайтом СибУПК.
                 </p>
               </div>
 
@@ -1156,7 +1156,7 @@ export default function App() {
               <div className="bg-gray-50 border-t border-gray-200 p-5 flex items-start gap-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-relaxed">
                 <Info className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                 <p>
-                  Веб-приложение осуществляет проксирование и анализ официальных файлов расписания. Копия данных вуза СибУПК (old.sibupk.su).
+                  Этот сайт - представляет более удобный взгляд на расписание нашего колледжа. #старыйсайтговно
                 </p>
               </div>
             </motion.div>
