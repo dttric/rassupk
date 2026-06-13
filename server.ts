@@ -35,11 +35,11 @@ async function startServer() {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
           },
           body: params.toString(),
-          signal: AbortSignal.timeout(10000) // 10s timeout
+          signal: AbortSignal.timeout(12000)
         });
         
         if (!fetchRes.ok) {
-          throw new Error(`University server returned status ${fetchRes.status}`);
+          throw new Error(`Server returned status ${fetchRes.status}`);
         }
         responseText = await fetchRes.text();
       } catch (err: any) {

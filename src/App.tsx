@@ -5,7 +5,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Analytics } from "@vercel/analytics/react";
 import {
   Calendar,
   Clock,
@@ -138,6 +137,38 @@ function findCurrentWeekRange(weeks: Option[], today: Date): string {
   return weeks.length > 0 ? weeks[weeks.length - 1].value : "";
 }
 
+// Helper to safely fetch from API and avoid crashing with unexpected characters from HTML error pages
+async function safeFetchJson(url: string, options: RequestInit) {
+  const res = await fetch(url, options);
+  const contentType = res.headers.get("content-type") || "";
+  
+  if (!res.ok) {
+    let errorMsg = `Ошибка сервера: ${res.status}`;
+    try {
+      if (contentType.includes("application/json")) {
+        const errJson = await res.json();
+        errorMsg = errJson.error || errJson.details || errorMsg;
+      } else {
+        const text = await res.text();
+        if (text.includes("SIBUPK") || text.includes("СибУПК") || text.includes("shedule") || text.includes("расписание")) {
+          errorMsg = "Не удалось загрузить данные с сайта СибУПК. Пожалуйста, попробуйте позже.";
+        }
+      }
+    } catch (_) {}
+    throw new Error(errorMsg);
+  }
+  
+  if (!contentType.includes("application/json")) {
+    throw new Error("Сервер вернул ответ в некорректном формате (отсутствует JSON)");
+  }
+  
+  try {
+    return await res.json();
+  } catch (err) {
+    throw new Error("Не удалось разобрать ответ сервера как JSON");
+  }
+}
+
 export default function App() {
   // Setup Wizard selections
   const [id_Forma, setIdForma] = useState<string>("");
@@ -156,6 +187,8 @@ export default function App() {
   // Main Loaded Schedule
   const [scheduleData, setScheduleData] = useState<ScheduleItem[]>([]);
   const [loadedWeeks, setLoadedWeeks] = useState<string[]>([]);
+  const [isCachedData, setIsCachedData] = useState<boolean>(false);
+  const [cacheTimestamp, setCacheTimestamp] = useState<number | null>(null);
 
   // UI States
   const [loading, setLoading] = useState<boolean>(false);
@@ -266,12 +299,11 @@ export default function App() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await fetch("/api/schedule", {
+      const data = await safeFetchJson("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      const data = await res.json();
       if (data.success && data.options?.forms) {
         setFormsList(data.options.forms);
       } else {
@@ -300,12 +332,11 @@ export default function App() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await fetch("/api/schedule", {
+      const data = await safeFetchJson("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_Forma: val }),
       });
-      const data = await res.json();
       if (data.success && data.options?.faculties) {
         setFacultiesList(data.options.faculties);
       } else {
@@ -332,12 +363,11 @@ export default function App() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await fetch("/api/schedule", {
+      const data = await safeFetchJson("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_Forma, id_Fak: val }),
       });
-      const data = await res.json();
       if (data.success && data.options?.courses) {
         setCoursesList(data.options.courses);
       } else {
@@ -362,12 +392,11 @@ export default function App() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await fetch("/api/schedule", {
+      const data = await safeFetchJson("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_Forma, id_Fak, Kurs: val }),
       });
-      const data = await res.json();
       if (data.success && data.options?.groups) {
         setGroupsList(data.options.groups);
       } else {
@@ -391,12 +420,11 @@ export default function App() {
     setErrorMessage(null);
     try {
       // Step 1: Retreive weeks options for this group
-      const res = await fetch("/api/schedule", {
+      const data = await safeFetchJson("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id_Forma, id_Fak, Kurs, NamePodGrup: val }),
       });
-      const data = await res.json();
       if (data.success && data.options?.weeks && data.options.weeks.length > 0) {
         const ws: Option[] = data.options.weeks;
         setWeeksList(ws);
@@ -406,16 +434,25 @@ export default function App() {
         setRangeNedel(defaultWeek);
 
         // Step 3: Call second fetch to load schedule immediately
-        const resSched = await fetch("/api/schedule", {
+        const dataSched = await safeFetchJson("/api/schedule", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id_Forma, id_Fak, Kurs, NamePodGrup: val, RangeNedel: defaultWeek }),
         });
-        const dataSched = await resSched.json();
 
         if (dataSched.success && dataSched.schedule) {
           setScheduleData(dataSched.schedule);
           setLoadedWeeks([defaultWeek]);
+          setIsCachedData(false);
+          setCacheTimestamp(null);
+
+          // Save resolved data to local cache
+          const cacheKey = "sibupk_cache_" + val;
+          localStorage.setItem(cacheKey, JSON.stringify({
+            weeksList: ws,
+            schedule: dataSched.schedule,
+            timestamp: Date.now()
+          }));
           
           // Save preference to localStorage
           const pref: SavedPreferences = {
@@ -462,9 +499,62 @@ export default function App() {
   const fetchFullDataAndSchedule = async (pref: SavedPreferences) => {
     setLoading(true);
     setErrorMessage(null);
+
+    const cacheKey = "sibupk_cache_" + pref.NamePodGrup;
+    const cachedDataStr = localStorage.getItem(cacheKey);
+    let hasLoadedFromCacheOnStart = false;
+
+    if (cachedDataStr) {
+      try {
+        const cached = JSON.parse(cachedDataStr);
+        if (cached && Array.isArray(cached.schedule) && Array.isArray(cached.weeksList)) {
+          setWeeksList(cached.weeksList);
+          setScheduleData(cached.schedule);
+          
+          const cachedWeeks: Option[] = cached.weeksList;
+          const targetWeek = pref.RangeNedel || (cachedWeeks.length > 0 ? cachedWeeks[0].value : "");
+          
+          // Mark all weeks as loaded so clicking around works offline immediately!
+          setLoadedWeeks(cachedWeeks.map((wk) => wk.value));
+          setRangeNedel(targetWeek);
+
+          const allDates: Date[] = [];
+          const dateStringsSeen = new Set<string>();
+          cachedWeeks.forEach((wk: Option) => {
+            const dates = generateRangeDates(wk.value);
+            dates.forEach((d) => {
+              const str = formatDateStr(d);
+              if (!dateStringsSeen.has(str)) {
+                dateStringsSeen.add(str);
+                allDates.push(d);
+              }
+            });
+          });
+          allDates.sort((a, b) => a.getTime() - b.getTime());
+
+          const today = new Date();
+          const todayStr = formatDateStr(today);
+          const hasToday = allDates.some((d) => formatDateStr(d) === todayStr);
+          if (hasToday) {
+            const todayDate = allDates.find((d) => formatDateStr(d) === todayStr);
+            if (todayDate) setSelectedDate(todayDate);
+          } else if (allDates.length > 0) {
+            setSelectedDate(findDefaultStudyDate(allDates));
+          }
+
+          setIsCachedData(true);
+          setCacheTimestamp(cached.timestamp || Date.now());
+          hasLoadedFromCacheOnStart = true;
+          setLoading(false);
+        }
+      } catch (cacheErr) {
+        console.error("Failed to restore initial schedule from cache", cacheErr);
+      }
+    }
+
     try {
       // Step 1: Fetch ALL week options (no RangeNedel passed) to ensure we always have all calendar dates
-      const resWeeks = await fetch("/api/schedule", {
+      const dataWeeks = await safeFetchJson("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -474,7 +564,6 @@ export default function App() {
           NamePodGrup: pref.NamePodGrup,
         }),
       });
-      const dataWeeks = await resWeeks.json();
       
       let ws: Option[] = [];
       if (dataWeeks.success && dataWeeks.options?.weeks && dataWeeks.options.weeks.length > 0) {
@@ -487,7 +576,7 @@ export default function App() {
       const targetWeek = currentRealWeek || pref.RangeNedel || (ws.length > 0 ? ws[0].value : "");
 
       // Step 3: Fetch the schedule specifically for targetWeek
-      const resSched = await fetch("/api/schedule", {
+      const dataSched = await safeFetchJson("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -498,7 +587,6 @@ export default function App() {
           RangeNedel: targetWeek,
         }),
       });
-      const dataSched = await resSched.json();
 
       if (dataSched.success) {
         const finalWeeks = ws.length > 0 ? ws : (dataSched.options?.weeks || []);
@@ -506,6 +594,15 @@ export default function App() {
         setScheduleData(dataSched.schedule || []);
         setLoadedWeeks([targetWeek]);
         setRangeNedel(targetWeek);
+        setIsCachedData(false);
+        setCacheTimestamp(null);
+
+        // Update local cache
+        localStorage.setItem(cacheKey, JSON.stringify({
+          weeksList: finalWeeks,
+          schedule: dataSched.schedule || [],
+          timestamp: Date.now()
+        }));
 
         // Update localStorage with targetWeek
         const updatedPref = { ...pref, RangeNedel: targetWeek };
@@ -564,7 +661,12 @@ export default function App() {
         throw new Error(dataSched.error || "Не удалось загрузить таблицу расписания");
       }
     } catch (err: any) {
-      setErrorMessage(err.message || "Ошибка при подключении к сервису");
+      if (hasLoadedFromCacheOnStart) {
+        setIsCachedData(true);
+        console.warn("Background fetch failed, using old cache. Error:", err.message);
+      } else {
+        setErrorMessage(err.message || "Ошибка при подключении к сервису");
+      }
     } finally {
       setLoading(false);
     }
@@ -612,7 +714,7 @@ export default function App() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const res = await fetch("/api/schedule", {
+      const data = await safeFetchJson("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -623,7 +725,6 @@ export default function App() {
           RangeNedel: weekVal
         }),
       });
-      const data = await res.json();
       if (data.success && data.schedule) {
         setScheduleData((prev) => {
           const merged = [...prev];
@@ -634,17 +735,33 @@ export default function App() {
               merged.push(lesson);
             }
           });
+
+          // Save merged schedule to localStorage cache synchronously
+          const cacheKey = "sibupk_cache_" + NamePodGrup;
+          localStorage.setItem(cacheKey, JSON.stringify({
+            weeksList,
+            schedule: merged,
+            timestamp: Date.now()
+          }));
+
           return merged;
         });
+
+        setIsCachedData(false);
+        setCacheTimestamp(null);
 
         setLoadedWeeks((prev) => [...prev, weekVal]);
         setRangeNedel(weekVal);
         
         const saved = localStorage.getItem("sibupk_selected_schedule");
         if (saved) {
-          const parsed = JSON.parse(saved);
-          parsed.RangeNedel = weekVal;
-          localStorage.setItem("sibupk_selected_schedule", JSON.stringify(parsed));
+          try {
+            const parsed = JSON.parse(saved);
+            parsed.RangeNedel = weekVal;
+            localStorage.setItem("sibupk_selected_schedule", JSON.stringify(parsed));
+          } catch (err) {
+            console.error("Failed to update saved schedule reference", err);
+          }
         }
 
         if (dateToSelect) {
@@ -1010,6 +1127,20 @@ export default function App() {
           </div>
         )}
 
+        {/* Cached offline notification banner */}
+        {isCachedData && (
+          <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 p-4 text-amber-900 rounded-none shadow-sm flex items-start gap-3" id="cache_toast">
+            <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-extrabold uppercase tracking-widest text-[10px] text-amber-700">Офлайн копия расписания</p>
+              <p className="mt-1 text-xs leading-relaxed">
+                Сайт СибУПК сейчас недоступен или вернул ошибку. Отображается копия расписания из кеша вашего устройства, 
+                сохраненная <strong>{cacheTimestamp ? new Date(cacheTimestamp).toLocaleString("ru-RU") : "ранее"}</strong>.
+              </p>
+            </div>
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           {/* WIZARD SETUP FLOW */}
           {isWizardMode ? (
@@ -1031,9 +1162,9 @@ export default function App() {
                   <Sparkles className="w-3.5 h-3.5 text-blue-200" />
                   Информационная система
                 </div>
-                <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">Добро пожаловать на RASSUPK</h2>
+                <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">Добро пожаловать к расписанию СибУПК</h2>
                 <p className="text-xs md:text-sm text-blue-100 mt-2 leading-relaxed font-medium uppercase tracking-wider opacity-90">
-                  Укажите параметры обучения для быстрой синхронизации напрямую с сайтом СибУПК.
+                  Укажите параметры обучения для быстрой синхронизации напрямую с ведомостями вуза.
                 </p>
               </div>
 
@@ -1156,7 +1287,7 @@ export default function App() {
               <div className="bg-gray-50 border-t border-gray-200 p-5 flex items-start gap-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-relaxed">
                 <Info className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
                 <p>
-                  Этот сайт - представляет более удобный взгляд на расписание нашего колледжа. #старыйсайтговно
+                  Веб-приложение осуществляет проксирование и анализ официальных файлов расписания. Копия данных вуза СибУПК (old.sibupk.su).
                 </p>
               </div>
             </motion.div>
@@ -1636,13 +1767,12 @@ export default function App() {
           </div>
         </div>
         
-        
+        <p className="font-bold uppercase tracking-wider text-slate-800 text-[10px]">Система просмотра расписания Сибирского Университета Потребительской Кооперации (СибУПК)</p>
         <div className="max-w-md mx-auto px-4 flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-gray-400">
           <CheckCircle className="w-3.5 h-3.5 text-blue-700 shrink-0" />
           <span>Синхронизация с системой вуза выполнена</span>
         </div>
       </footer>
-      <Analytics />
     </div>
   );
 }

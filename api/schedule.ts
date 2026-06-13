@@ -27,7 +27,7 @@ export default async function handler(req: any, res: any) {
     const params = new URLSearchParams();
     if (id_Forma) params.append("id_Forma", String(id_Forma));
     if (id_Fak) params.append("id_Fak", String(id_Fak));
-    if ( Kurs) params.append("Kurs", String(Kurs));
+    if (Kurs) params.append("Kurs", String(Kurs));
     if (NamePodGrup) params.append("NamePodGrup", String(NamePodGrup));
     if (RangeNedel) params.append("RangeNedel", String(RangeNedel));
 
@@ -40,11 +40,11 @@ export default async function handler(req: any, res: any) {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         },
         body: params.toString(),
-        signal: AbortSignal.timeout(10000) // 10s timeout
+        signal: AbortSignal.timeout(12000) // 12 seconds timeout
       });
       
       if (!fetchRes.ok) {
-        throw new Error(`University server returned status ${fetchRes.status}`);
+        throw new Error(`Server returned status ${fetchRes.status}`);
       }
       responseText = await fetchRes.text();
     } catch (err: any) {
