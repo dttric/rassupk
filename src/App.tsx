@@ -988,6 +988,13 @@ export default function App() {
         bullet: "bg-emerald-600 font-bold"
       };
     }
+    if (cleanSub.includes("(лаб)") || cleanSub.includes("лабаратор") || cleanSub.includes("лабараторная")) {
+      return {
+        label: "Лабараторная",
+        bg: "bg-emerald-100 text-emerald-800 border-emerald-200",
+        bullet: "bg-emerald-600 font-bold"
+      };
+    }
     if (cleanSub.includes("(зач)") || cleanSub.includes("зачет") || cleanSub.includes("(экз)") || cleanSub.includes("экзамен")) {
       return {
         label: "Зачет / Экзамен",
