@@ -974,9 +974,16 @@ export default function App() {
         bullet: "bg-blue-700 font-bold"
       };
     }
-    if (cleanSub.includes("(с)") || cleanSub.includes("семинар") || cleanSub.includes("(пр)") || cleanSub.includes("практ")) {
+    if (cleanSub.includes("(с)") || cleanSub.includes("семинар")) {
       return {
-        label: "Семинар / Практика",
+        label: "Семинар",
+        bg: "bg-emerald-100 text-emerald-800 border-emerald-200",
+        bullet: "bg-emerald-600 font-bold"
+      };
+    }
+    if (cleanSub.includes("(пр)") || cleanSub.includes("практ")) {
+      return {
+        label: "Практика",
         bg: "bg-emerald-100 text-emerald-800 border-emerald-200",
         bullet: "bg-emerald-600 font-bold"
       };
