@@ -1599,7 +1599,7 @@ export default function App() {
                                     {lesson.classroom && (
                                       <span className="text-[9px] font-bold bg-gray-100 text-gray-605 border border-gray-200 px-2 py-0.5 rounded-none flex items-center gap-1 uppercase tracking-wide">
                                         <MapPin className="w-2.5 h-2.5 text-gray-500" />
-                                        Ауд. {lesson.classroom}
+                                        {lesson.classroom}
                                       </span>
                                     )}
                                   </div>
@@ -1728,7 +1728,7 @@ export default function App() {
                                           {lesson.classroom && (
                                             <span className="text-[9px] font-bold text-gray-500 uppercase flex items-center gap-0.5">
                                               <MapPin className="w-2.5 h-2.5" />
-                                              Ауд. {lesson.classroom}
+                                              {lesson.classroom}
                                             </span>
                                           )}
                                         </div>
