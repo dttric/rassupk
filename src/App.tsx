@@ -1379,7 +1379,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleJumpToToday}
-                      className="flex-1 sm:flex-none px-4 py-2 border-2 text-xs font-black uppercase tracking-tight transition-all rounded-none text-center border-transparent bg-blue-50 text-blue-750 hover:bg-blue-100 hover:text-slate-900 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                      className="flex-1 sm:flex-none px-4 py-2 border-2 text-xs font-black uppercase tracking-tight transition-all rounded-none text-center border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                       id="btn_jump_to_today"
                     >
                       <Sparkles className="w-3.5 h-3.5 shrink-0" />
