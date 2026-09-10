@@ -1,20 +1,24 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Расписание СибУПК
 
-# Run and deploy your AI Studio app
+Веб-приложение для просмотра расписания занятий СибУПК по формам обучения, факультетам, курсам, группам и неделям.
 
-This contains everything you need to run your app locally.
+## Требования
 
-View your app in AI Studio: https://ai.studio/apps/595f5f7d-4eb6-4fb6-b166-99dc9f00dbae
+- Node.js 18+
+- npm
 
-## Run Locally
+## Локальный запуск
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
+1. Установите зависимости:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Запустите приложение:
    `npm run dev`
+3. Откройте в браузере:
+   `http://localhost:3000`
+
+## Полезные команды
+
+- `npm run dev` — запуск в режиме разработки
+- `npm run build` — сборка фронтенда и сервера
+- `npm run start` — запуск собранной версии
+- `npm run lint` — проверка TypeScript без генерации файлов
