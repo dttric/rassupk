@@ -1493,6 +1493,7 @@ export default function App() {
                       const str = formatDateStr(dateObj);
                       const isSelected = selectedDate && formatDateStr(selectedDate) === str;
                       const isToday = formatDateStr(new Date()) === str;
+                      const isTodaySelected = Boolean(isSelected && isToday);
                       
                       const dayName = dateObj.toLocaleDateString("ru-RU", { weekday: "long" });
                       const formattedDayName = dayName.charAt(0).toUpperCase() + dayName.slice(1);
@@ -1519,18 +1520,20 @@ export default function App() {
                             setErrorMessage(null);
                           }}
                           className={`flex-none w-14 rounded-none py-2.5 flex flex-col items-center justify-center border transition-all cursor-pointer ${
-                            isSelected
+                            isTodaySelected
+                              ? "bg-blue-700 border-2 border-amber-300 text-white scale-100"
+                              : isSelected
                               ? "bg-blue-700 border-2 border-blue-700 text-white scale-100 "
                               : isToday
                                 ? "bg-blue-50/70 border-2 border-dashed border-blue-600 text-blue-900 font-extrabold"
                                 : "bg-white border-gray-200 hover:bg-blue-50/20 text-slate-800"
                           }`}
                         >
-                          <span className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-blue-200" : isSunday ? "text-rose-500" : "text-gray-400"}`}>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-blue-200" : isToday ? "text-blue-700" : isSunday ? "text-rose-500" : "text-gray-400"}`}>
                             {dayShort}
                           </span>
                           <span className="text-md font-black tracking-tighter mt-0.5">{dayNum}</span>
-                          <span className={`text-[9px] uppercase font-bold tracking-widest ${isSelected ? "text-blue-100" : "text-gray-400"}`}>
+                          <span className={`text-[9px] uppercase font-bold tracking-widest ${isSelected ? "text-blue-100" : isToday ? "text-blue-700" : "text-gray-400"}`}>
                             {monthShort}
                           </span>
 
