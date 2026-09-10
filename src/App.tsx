@@ -22,7 +22,9 @@ import {
   HelpCircle,
   Filter,
   Bookmark,
-  Smartphone
+  Smartphone,
+  Moon,
+  Sun
 } from "lucide-react";
 
 // Types for select options
@@ -201,6 +203,19 @@ export default function App() {
 
   // Active clock state
   const [currentLocalTime, setCurrentLocalTime] = useState<string>("");
+  const [isDarkTheme, setIsDarkTheme] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const savedTheme = localStorage.getItem("sibupk_theme");
+    if (savedTheme === "dark") return true;
+    if (savedTheme === "light") return false;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("dark", isDarkTheme);
+    localStorage.setItem("sibupk_theme", isDarkTheme ? "dark" : "light");
+  }, [isDarkTheme]);
 
   useEffect(() => {
     const updateClock = () => {
@@ -1038,39 +1053,51 @@ export default function App() {
             </div>
           </div>
 
-          {/* User preferences display (State Toggle) */}
-          {!isWizardMode && NamePodGrup && (
-            <div className="flex flex-wrap items-center gap-3 self-start md:self-auto bg-gray-50 border border-gray-200 rounded-none p-2.5" id="saved_meta_panel">
-              <div className="text-left">
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-slate-500">Выбранная группа</p>
-                <div className="text-xs font-bold text-slate-900 uppercase tracking-tight line-clamp-1 max-w-[200px]" title={NamePodGrup}>
-                  {shortenGroupName(NamePodGrup)}
+          <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+            <button
+              onClick={() => setIsDarkTheme((prev) => !prev)}
+              className="px-3 py-1.5 bg-white hover:bg-gray-100 text-blue-700 border border-gray-200 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none flex items-center gap-1.5"
+              id="theme_toggle_btn"
+              title={isDarkTheme ? "Включить светлую тему" : "Включить темную тему"}
+            >
+              {isDarkTheme ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              {isDarkTheme ? "Светлая" : "Темная"}
+            </button>
+
+            {/* User preferences display (State Toggle) */}
+            {!isWizardMode && NamePodGrup && (
+              <div className="flex flex-wrap items-center gap-3 bg-gray-50 border border-gray-200 rounded-none p-2.5" id="saved_meta_panel">
+                <div className="text-left">
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-slate-500">Выбранная группа</p>
+                  <div className="text-xs font-bold text-slate-900 uppercase tracking-tight line-clamp-1 max-w-[200px]" title={NamePodGrup}>
+                    {shortenGroupName(NamePodGrup)}
+                  </div>
                 </div>
+
+                {/* Favorites toggle star button */}
+                <button
+                  onClick={toggleFavorite}
+                  className={`px-2.5 py-1.5 border text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all rounded-none flex items-center gap-1 ${
+                    isCurrentGroupFavorite
+                      ? "bg-amber-500 border-amber-600 text-white hover:bg-amber-600"
+                      : "bg-white border-gray-250 text-gray-500 hover:bg-gray-100 hover:text-slate-900"
+                  }`}
+                  id="toggle_favorite_btn"
+                  title={isCurrentGroupFavorite ? "Удалить из избранного" : "Добавить в избранное"}
+                >
+                  {isCurrentGroupFavorite ? "★ В избранном" : "☆ В избранное"}
+                </button>
+
+                <button
+                  onClick={resetGroupPreference}
+                  className="px-3 py-1.5 bg-white hover:bg-gray-100 text-blue-700 border border-gray-200 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none"
+                  id="reset_preference_btn"
+                >
+                  Сменить
+                </button>
               </div>
-
-              {/* Favorites toggle star button */}
-              <button
-                onClick={toggleFavorite}
-                className={`px-2.5 py-1.5 border text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all rounded-none flex items-center gap-1 ${
-                  isCurrentGroupFavorite
-                    ? "bg-amber-500 border-amber-600 text-white hover:bg-amber-600"
-                    : "bg-white border-gray-250 text-gray-500 hover:bg-gray-100 hover:text-slate-900"
-                }`}
-                id="toggle_favorite_btn"
-                title={isCurrentGroupFavorite ? "Удалить из избранного" : "Добавить в избранное"}
-              >
-                {isCurrentGroupFavorite ? "★ В избранном" : "☆ В избранное"}
-              </button>
-
-              <button
-                onClick={resetGroupPreference}
-                className="px-3 py-1.5 bg-white hover:bg-gray-100 text-blue-700 border border-gray-200 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none"
-                id="reset_preference_btn"
-              >
-                Сменить
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </header>
 
