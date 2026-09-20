@@ -214,8 +214,29 @@ export default function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", isDarkTheme);
-    localStorage.setItem("sibupk_theme", isDarkTheme ? "dark" : "light");
   }, [isDarkTheme]);
+
+  // Listen for system theme changes if user hasn't explicitly set a preference
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const handleChange = (e: MediaQueryListEvent) => {
+      const savedTheme = localStorage.getItem("sibupk_theme");
+      if (!savedTheme) {
+        setIsDarkTheme(e.matches);
+      }
+    };
+    mediaQuery.addEventListener("change", handleChange);
+    return () => mediaQuery.removeEventListener("change", handleChange);
+  }, []);
+
+  const handleToggleTheme = () => {
+    setIsDarkTheme((prev) => {
+      const next = !prev;
+      localStorage.setItem("sibupk_theme", next ? "dark" : "light");
+      return next;
+    });
+  };
 
   useEffect(() => {
     const updateClock = () => {
@@ -985,56 +1006,56 @@ export default function App() {
     if (cleanSub.includes("(лек)") || cleanSub.includes("лекция")) {
       return {
         label: "Лекция",
-        bg: "bg-blue-100 text-blue-800 border-blue-200",
-        bullet: "bg-blue-700 font-bold"
+        bg: "bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800",
+        bullet: "bg-blue-700 dark:bg-blue-500 font-bold"
       };
     }
     if (cleanSub.includes("(с)") || cleanSub.includes("семинар")) {
       return {
         label: "Семинар",
-        bg: "bg-emerald-100 text-emerald-800 border-emerald-200",
-        bullet: "bg-emerald-600 font-bold"
+        bg: "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+        bullet: "bg-emerald-600 dark:bg-emerald-500 font-bold"
       };
     }
     if (cleanSub.includes("(пр)") || cleanSub.includes("практ")) {
       return {
         label: "Практика",
-        bg: "bg-emerald-100 text-emerald-800 border-emerald-200",
-        bullet: "bg-emerald-600 font-bold"
+        bg: "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+        bullet: "bg-emerald-600 dark:bg-emerald-500 font-bold"
       };
     }
     if (cleanSub.includes("(лаб)") || cleanSub.includes("лабаратор") || cleanSub.includes("лабараторная")) {
       return {
-        label: "Лабараторная",
-        bg: "bg-emerald-100 text-emerald-800 border-emerald-200",
-        bullet: "bg-emerald-600 font-bold"
+        label: "Лабораторная",
+        bg: "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+        bullet: "bg-emerald-600 dark:bg-emerald-500 font-bold"
       };
     }
     if (cleanSub.includes("(зач)") || cleanSub.includes("зачет") || cleanSub.includes("(экз)") || cleanSub.includes("экзамен")) {
       return {
         label: "Зачет / Экзамен",
-        bg: "bg-rose-100 text-rose-800 border-rose-250 animate-pulse",
-        bullet: "bg-rose-600 font-bold"
+        bg: "bg-rose-100 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border-rose-250 dark:border-rose-800 animate-pulse",
+        bullet: "bg-rose-600 dark:bg-rose-500 font-bold"
       };
     }
     if (cleanSub.includes("проект") || cleanSub.includes("индивидуальный")) {
       return {
         label: "Проект",
-        bg: "bg-indigo-100 text-indigo-800 border-indigo-200",
-        bullet: "bg-indigo-600 font-bold"
+        bg: "bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800",
+        bullet: "bg-indigo-600 dark:bg-indigo-500 font-bold"
       };
     }
     return {
       label: "Занятие",
-      bg: "bg-gray-100 text-gray-700 border-gray-200",
-      bullet: "bg-gray-500 font-semibold"
+      bg: "bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-700",
+      bullet: "bg-gray-500 dark:bg-slate-400 font-semibold"
     };
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-slate-900 flex flex-col font-sans transition-colors antialiased">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans transition-colors antialiased">
       {/* High Contrast Geometric Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-200" id="main_header">
+      <header className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 transition-colors" id="main_header">
         <div className="max-w-4xl mx-auto px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
           
           {/* Main branding */}
@@ -1043,11 +1064,11 @@ export default function App() {
               <span className="font-sans font-bold text-xl uppercase tracking-tighter">С</span>
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight uppercase text-slate-950 flex items-center gap-2" id="title_main">
-                СибУПК <span className="text-[9px] uppercase font-bold tracking-widest text-blue-700 bg-blue-50 px-2 py-0.5 border border-blue-200 rounded-none">Live</span>
+              <h1 className="text-xl font-bold tracking-tight uppercase text-slate-950 dark:text-white flex items-center gap-2" id="title_main">
+                СибУПК <span className="text-[9px] uppercase font-bold tracking-widest text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 border border-blue-200 dark:border-blue-800 rounded-none">Live</span>
               </h1>
-              <p className="text-xs text-gray-400 font-bold tracking-widest uppercase flex items-center gap-1" id="clock_time">
-                <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <p className="text-xs text-gray-400 dark:text-slate-400 font-bold tracking-widest uppercase flex items-center gap-1" id="clock_time">
+                <Clock className="w-3.5 h-3.5 text-gray-400 dark:text-slate-400 shrink-0" />
                 {currentLocalTime || "ОБНОВЛЕНИЕ..."}
               </p>
             </div>
@@ -1055,8 +1076,8 @@ export default function App() {
 
           <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
             <button
-              onClick={() => setIsDarkTheme((prev) => !prev)}
-              className="px-3 py-1.5 bg-white hover:bg-gray-100 text-blue-700 border border-gray-200 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none flex items-center gap-1.5"
+              onClick={handleToggleTheme}
+              className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-400 border border-gray-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none flex items-center gap-1.5"
               id="theme_toggle_btn"
               title={isDarkTheme ? "Включить светлую тему" : "Включить темную тему"}
             >
@@ -1066,10 +1087,10 @@ export default function App() {
 
             {/* User preferences display (State Toggle) */}
             {!isWizardMode && NamePodGrup && (
-              <div className="flex flex-wrap items-center gap-3 bg-gray-50 border border-gray-200 rounded-none p-2.5" id="saved_meta_panel">
+              <div className="flex flex-wrap items-center gap-3 bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-none p-2.5" id="saved_meta_panel">
                 <div className="text-left">
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest text-slate-500">Выбранная группа</p>
-                  <div className="text-xs font-bold text-slate-900 uppercase tracking-tight line-clamp-1 max-w-[200px]" title={NamePodGrup}>
+                  <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Выбранная группа</p>
+                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight line-clamp-1 max-w-[200px]" title={NamePodGrup}>
                     {shortenGroupName(NamePodGrup)}
                   </div>
                 </div>
@@ -1080,7 +1101,7 @@ export default function App() {
                   className={`px-2.5 py-1.5 border text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all rounded-none flex items-center gap-1 ${
                     isCurrentGroupFavorite
                       ? "bg-amber-500 border-amber-600 text-white hover:bg-amber-600"
-                      : "bg-white border-gray-250 text-gray-500 hover:bg-gray-100 hover:text-slate-900"
+                      : "bg-white dark:bg-slate-800 border-gray-250 dark:border-slate-700 text-gray-500 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
                   }`}
                   id="toggle_favorite_btn"
                   title={isCurrentGroupFavorite ? "Удалить из избранного" : "Добавить в избранное"}
@@ -1090,7 +1111,7 @@ export default function App() {
 
                 <button
                   onClick={resetGroupPreference}
-                  className="px-3 py-1.5 bg-white hover:bg-gray-100 text-blue-700 border border-gray-200 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-400 border border-gray-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none"
                   id="reset_preference_btn"
                 >
                   Сменить
@@ -1106,10 +1127,10 @@ export default function App() {
         
         {/* Favorite Groups Quick Bar */}
         {favorites.length > 0 && (
-          <div className="mb-6 bg-white border border-gray-200 p-4 rounded-none shadow-none flex flex-col gap-2" id="favorites_bar">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                <Bookmark className="w-3.5 h-3.5 text-blue-700 fill-blue-700" />
+          <div className="mb-6 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 rounded-none shadow-none flex flex-col gap-2" id="favorites_bar">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-2">
+              <span className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Bookmark className="w-3.5 h-3.5 text-blue-700 dark:text-blue-400 fill-blue-700 dark:fill-blue-400" />
                 Избранные группы ({favorites.length})
               </span>
             </div>
@@ -1117,13 +1138,13 @@ export default function App() {
               {favorites.map((fav) => {
                 const isActive = !isWizardMode && NamePodGrup === fav.NamePodGrup;
                 return (
-                  <div key={fav.NamePodGrup} className="flex items-center border border-gray-200" id={`fav_item_${fav.NamePodGrup.replace(/\s+/g, '_')}`}>
+                  <div key={fav.NamePodGrup} className="flex items-center border border-gray-200 dark:border-slate-700" id={`fav_item_${fav.NamePodGrup.replace(/\s+/g, '_')}`}>
                     <button
                       onClick={() => loadFavoriteGroup(fav)}
                       className={`text-xs font-bold uppercase tracking-tight px-3 py-1.5 transition-all cursor-pointer rounded-none flex items-center gap-1.5 border-none ${
                         isActive
                           ? "bg-blue-700 text-white font-extrabold"
-                          : "bg-gray-50 text-slate-800 hover:bg-gray-100"
+                          : "bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700"
                       }`}
                       id={`fav_btn_${fav.NamePodGrup}`}
                     >
@@ -1135,7 +1156,7 @@ export default function App() {
                         setFavorites(updated);
                         localStorage.setItem("sibupk_favorite_groups", JSON.stringify(updated));
                       }}
-                      className="p-1.5 border-l border-gray-200 bg-white hover:bg-rose-50 text-gray-400 hover:text-rose-500 transition-colors cursor-pointer rounded-none border-t-0 border-b-0 border-r-0"
+                      className="p-1.5 border-l border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-gray-400 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors cursor-pointer rounded-none border-t-0 border-b-0 border-r-0"
                       title="Удалить из избранного"
                       id={`fav_del_btn_${fav.NamePodGrup}`}
                     >
@@ -1150,7 +1171,7 @@ export default function App() {
 
         {/* Error notification banner */}
         {errorMessage && (
-          <div className="mb-6 bg-rose-50 border border-rose-100 rounded-xl p-4 text-sm text-rose-800 flex items-start gap-3 shadow-md shadow-rose-50" id="error_toast">
+          <div className="mb-6 bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/50 rounded-xl p-4 text-sm text-rose-800 dark:text-rose-200 flex items-start gap-3 shadow-md shadow-rose-50/50 dark:shadow-none" id="error_toast">
             <Info className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="font-semibold">Произошла ошибка</p>
@@ -1160,7 +1181,7 @@ export default function App() {
                   setErrorMessage(null);
                   if (formsList.length === 0) loadFormOptions();
                 }}
-                className="mt-2 text-rose-700 bg-rose-100 hover:bg-rose-200 font-semibold px-3 py-1 rounded-lg text-xs cursor-pointer transition-all"
+                className="mt-2 text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-900/60 hover:bg-rose-200 dark:hover:bg-rose-900 font-semibold px-3 py-1 rounded-lg text-xs cursor-pointer transition-all"
               >
                 Повторить попытку
               </button>
@@ -1170,10 +1191,10 @@ export default function App() {
 
         {/* Cached offline notification banner */}
         {isCachedData && (
-          <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 border-l-4 border-amber-500 p-4 text-amber-900 rounded-none shadow-sm flex items-start gap-3" id="cache_toast">
+          <div className="mb-6 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 border-l-4 border-amber-500 p-4 text-amber-900 dark:text-amber-200 rounded-none shadow-sm flex items-start gap-3" id="cache_toast">
             <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="font-extrabold uppercase tracking-widest text-[10px] text-amber-700">Офлайн копия расписания</p>
+              <p className="font-extrabold uppercase tracking-widest text-[10px] text-amber-700 dark:text-amber-400">Офлайн копия расписания</p>
               <p className="mt-1 text-xs leading-relaxed">
                 Сайт СибУПК сейчас недоступен или вернул ошибку. Отображается копия расписания из кеша вашего устройства, 
                 сохраненная <strong>{cacheTimestamp ? new Date(cacheTimestamp).toLocaleString("ru-RU") : "ранее"}</strong>.
@@ -1191,7 +1212,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
-              className="bg-white border-2 border-slate-900 rounded-none shadow-none overflow-hidden"
+              className="bg-white dark:bg-slate-900 border-2 border-slate-900 dark:border-slate-700 rounded-none shadow-none overflow-hidden"
               id="wizard_box"
             >
               {/* Wizard Header Banner */}
@@ -1210,12 +1231,12 @@ export default function App() {
               </div>
 
               {/* Steps inputs holder */}
-              <div className="p-6 md:p-8 space-y-6 bg-white" id="inputs_holder">
+              <div className="p-6 md:p-8 space-y-6 bg-white dark:bg-slate-900" id="inputs_holder">
                 
                 {/* Step 1: Form of Education */}
                 <div className="space-y-2" id="step_form_container">
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 block flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-none bg-blue-50 text-blue-700 font-mono font-bold border border-blue-200 flex items-center justify-center">1</span>
+                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-3 block flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">1</span>
                     Форма обучения
                   </label>
                   <div className="relative">
@@ -1223,7 +1244,7 @@ export default function App() {
                       value={id_Forma}
                       onChange={(e) => handleFormChange(e.target.value)}
                       disabled={loading || formsList.length === 0}
-                      className="w-full p-3 border border-gray-200 bg-gray-50 text-slate-800 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white text-sm outline-none transition-all"
+                      className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
                       id="select_forma"
                     >
                       <option value="">-- Выберите форму обучения --</option>
@@ -1242,15 +1263,15 @@ export default function App() {
                     className="space-y-2"
                     id="step_faculty_container"
                   >
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-none bg-blue-50 text-blue-700 font-mono font-bold border border-blue-200 flex items-center justify-center">2</span>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2 block flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">2</span>
                       Факультет / Отделение
                     </label>
                     <select
                       value={id_Fak}
                       onChange={(e) => handleFakChange(e.target.value)}
                       disabled={loading || facultiesList.length === 0}
-                      className="w-full p-3 border border-gray-200 bg-gray-50 text-slate-800 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white text-sm outline-none transition-all"
+                      className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
                       id="select_fak"
                     >
                       <option value="">-- Выберите факультет --</option>
@@ -1269,15 +1290,15 @@ export default function App() {
                     className="space-y-2"
                     id="step_course_container"
                   >
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-none bg-blue-50 text-blue-700 font-mono font-bold border border-blue-200 flex items-center justify-center">3</span>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2 block flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">3</span>
                       Учебный курс
                     </label>
                     <select
                       value={Kurs}
                       onChange={(e) => handleKursChange(e.target.value)}
                       disabled={loading || coursesList.length === 0}
-                      className="w-full p-3 border border-gray-200 bg-gray-50 text-slate-800 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white text-sm outline-none transition-all"
+                      className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
                       id="select_kurs"
                     >
                       <option value="">-- Выберите курс --</option>
@@ -1296,15 +1317,15 @@ export default function App() {
                     className="space-y-2"
                     id="step_group_container"
                   >
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-2 block flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-none bg-blue-50 text-blue-700 font-mono font-bold border border-blue-200 flex items-center justify-center">4</span>
+                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2 block flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">4</span>
                       Академическая группа
                     </label>
                     <select
                       value={NamePodGrup}
                       onChange={(e) => handleGroupSelectChange(e.target.value)}
                       disabled={loading || groupsList.length === 0}
-                      className="w-full p-3 border border-gray-200 bg-gray-50 text-slate-800 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white text-sm outline-none transition-all"
+                      className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
                       id="select_group"
                     >
                       <option value="">-- Выберите группу --</option>
@@ -1317,16 +1338,16 @@ export default function App() {
 
                 {/* Loading status overlay */}
                 {loading && (
-                  <div className="flex items-center gap-3 bg-gray-50 border border-gray-200 rounded-none p-4 text-xs text-gray-500 uppercase tracking-widest font-bold" id="loading_overlay">
-                    <div className="w-4 h-4 border-2 border-blue-700 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="flex items-center gap-3 bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-none p-4 text-xs text-gray-500 dark:text-slate-400 uppercase tracking-widest font-bold" id="loading_overlay">
+                    <div className="w-4 h-4 border-2 border-blue-700 dark:border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                     <span className="animate-pulse">Обращение к служебному серверу СибУПК... Ожидайте</span>
                   </div>
                 )}
               </div>
 
               {/* Static Disclaimer */}
-              <div className="bg-gray-50 border-t border-gray-200 p-5 flex items-start gap-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-relaxed">
-                <Info className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+              <div className="bg-gray-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-800 p-5 flex items-start gap-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-slate-400 leading-relaxed">
+                <Info className="w-4 h-4 text-gray-400 dark:text-slate-400 shrink-0 mt-0.5" />
                 <p>
                   Веб-приложение осуществляет проксирование и анализ официальных файлов расписания. Копия данных вуза СибУПК (old.sibupk.su).
                 </p>
@@ -1345,11 +1366,11 @@ export default function App() {
             >
               
               {/* TOP INTERACTIVE CONTROL PANEL (Search + toggle, no period selector) */}
-              <div className="bg-white border border-gray-200 p-5 rounded-none shadow-none space-y-4" id="controls_panel">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-850">
+              <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-5 rounded-none shadow-none space-y-4" id="controls_panel">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-slate-800 dark:text-slate-200">
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-blue-700 shrink-0" />
-                    <span className="text-xs font-black uppercase tracking-wider text-slate-705">Учебный год</span>
+                    <Calendar className="w-4 h-4 text-blue-700 dark:text-blue-400 shrink-0" />
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Учебный год</span>
                   </div>
 
                   {/* View mode toggle button */}
@@ -1359,7 +1380,7 @@ export default function App() {
                       className={`flex-1 sm:flex-none px-4 py-2 border-2 text-xs font-bold uppercase tracking-tight transition-all rounded-none text-center ${
                         viewMode === "day"
                           ? "border-blue-700 bg-blue-700 text-white"
-                          : "border-transparent bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                          : "border-transparent bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-200"
                       }`}
                       id="btn_view_day"
                     >
@@ -1370,7 +1391,7 @@ export default function App() {
                       className={`flex-1 sm:flex-none px-4 py-2 border-2 text-xs font-bold uppercase tracking-tight transition-all rounded-none text-center ${
                         viewMode === "week"
                           ? "border-blue-700 bg-blue-700 text-white"
-                          : "border-transparent bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                          : "border-transparent bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-slate-200"
                       }`}
                       id="btn_view_week"
                     >
@@ -1379,7 +1400,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleJumpToToday}
-                      className="flex-1 sm:flex-none px-4 py-2 border-2 text-xs font-black uppercase tracking-tight transition-all rounded-none text-center border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                      className="flex-1 sm:flex-none px-4 py-2 border-2 text-xs font-black uppercase tracking-tight transition-all rounded-none text-center border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/60 hover:text-blue-800 dark:hover:text-blue-300 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                       id="btn_jump_to_today"
                     >
                       <Sparkles className="w-3.5 h-3.5 shrink-0" />
@@ -1390,19 +1411,19 @@ export default function App() {
 
                 {/* Interactive Instant Filter Search bar */}
                 <div className="relative">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-slate-500" />
                   <input
                     type="text"
                     placeholder="Быстрый фильтр: математика, преподаватель или аудитория..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full text-xs md:text-sm bg-gray-50 border border-gray-200 hover:border-gray-300 focus:bg-white focus:border-blue-700 rounded-none pl-10 pr-4 py-3 outline-none transition-all"
+                    className="w-full text-xs md:text-sm bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:border-blue-700 dark:focus:border-blue-500 text-slate-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 rounded-none pl-10 pr-4 py-3 outline-none transition-all"
                     id="filter_classes_input"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery("")}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 hover:text-blue-700 cursor-pointer uppercase tracking-wider"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-400 cursor-pointer uppercase tracking-wider"
                     >
                       Очистить
                     </button>
@@ -1412,24 +1433,24 @@ export default function App() {
 
               {/* DYNAMIC CALENDAR NAVIGATION & STRIP (Horizontal Swiper for Academic Year) */}
               {viewMode === "day" && academicYearDates.length > 0 && (
-                <div className="space-y-4 bg-white border border-gray-200 p-5 rounded-none shadow-none" id="month_calendar_block">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1 flex items-center gap-1.5 select-none">
-                      <Calendar className="w-3.5 h-3.5 text-blue-700" />
+                <div className="space-y-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-5 rounded-none shadow-none" id="month_calendar_block">
+                  <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-3">
+                    <h3 className="text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest px-1 flex items-center gap-1.5 select-none">
+                      <Calendar className="w-3.5 h-3.5 text-blue-700 dark:text-blue-400" />
                       Выбор учебного месяца
                     </h3>
                   </div>
 
                   {/* Interactive Month Switcher Layout with Left & Right controls */}
-                  <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2 text-slate-900 rounded-none select-none">
+                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-2 text-slate-900 dark:text-slate-100 rounded-none select-none">
                     <button
                       type="button"
                       onClick={handlePrevMonth}
                       disabled={currentMonthIndex <= 0}
                       className={`p-2 border transition-all flex items-center justify-center rounded-none select-none ${
                         currentMonthIndex <= 0
-                          ? "opacity-35 cursor-not-allowed border-gray-200 text-gray-300 bg-gray-50"
-                          : "border-gray-200 hover:border-slate-800 hover:bg-slate-800 hover:text-white text-slate-700 bg-white cursor-pointer active:scale-95"
+                          ? "opacity-35 cursor-not-allowed border-gray-200 dark:border-slate-700 text-gray-300 dark:text-slate-600 bg-gray-50 dark:bg-slate-800"
+                          : "border-gray-200 dark:border-slate-700 hover:border-slate-800 dark:hover:border-slate-500 hover:bg-slate-800 dark:hover:bg-slate-700 hover:text-white text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 cursor-pointer active:scale-95"
                       }`}
                       title="Предыдущий месяц"
                     >
@@ -1437,8 +1458,8 @@ export default function App() {
                     </button>
                     
                     <div className="text-center font-bold">
-                      <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5 leading-none">Выбранный месяц</div>
-                      <div className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 leading-normal">
+                      <div className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest mb-0.5 leading-none">Выбранный месяц</div>
+                      <div className="text-xs sm:text-sm font-black uppercase tracking-wider text-slate-900 dark:text-slate-100 leading-normal">
                         {currentMonthIndex >= 0 ? academicMonths[currentMonthIndex].label : "Не выбран"}
                       </div>
                     </div>
@@ -1449,8 +1470,8 @@ export default function App() {
                       disabled={currentMonthIndex === -1 || currentMonthIndex >= academicMonths.length - 1}
                       className={`p-2 border transition-all flex items-center justify-center rounded-none select-none ${
                         currentMonthIndex === -1 || currentMonthIndex >= academicMonths.length - 1
-                          ? "opacity-35 cursor-not-allowed border-gray-200 text-gray-300 bg-gray-50"
-                          : "border-gray-200 hover:border-slate-800 hover:bg-slate-800 hover:text-white text-slate-700 bg-white cursor-pointer active:scale-95"
+                          ? "opacity-35 cursor-not-allowed border-gray-200 dark:border-slate-700 text-gray-300 dark:text-slate-600 bg-gray-50 dark:bg-slate-800"
+                          : "border-gray-200 dark:border-slate-700 hover:border-slate-800 dark:hover:border-slate-500 hover:bg-slate-800 dark:hover:bg-slate-700 hover:text-white text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 cursor-pointer active:scale-95"
                       }`}
                       title="Следующий месяц"
                     >
@@ -1461,7 +1482,7 @@ export default function App() {
                   {/* Complete Academic Months Quick Selection Grid */}
                   {academicMonths.length > 0 && (
                     <div className="space-y-2 mt-2" id="academic_months_nav">
-                      <div className="text-[10px] font-black tracking-widest text-gray-400 uppercase px-1">Быстрый переход</div>
+                      <div className="text-[10px] font-black tracking-widest text-gray-400 dark:text-slate-400 uppercase px-1">Быстрый переход</div>
                       <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
                         {academicMonths.map((m, idx) => {
                           const isMonthActive = currentMonthIndex === idx;
@@ -1472,8 +1493,8 @@ export default function App() {
                               onClick={() => handleMonthClick(m.firstDate)}
                               className={`px-2.5 py-2 text-[10px] font-black uppercase tracking-wider text-center border cursor-pointer select-none transition-all ${
                                 isMonthActive
-                                  ? "bg-slate-950 border-slate-950 text-white font-black"
-                                  : "bg-white border-gray-200 text-gray-500 hover:text-slate-900 hover:border-gray-400 hover:bg-gray-50"
+                                  ? "bg-slate-950 dark:bg-blue-600 border-slate-950 dark:border-blue-600 text-white font-black"
+                                  : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:border-gray-400 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700"
                               }`}
                             >
                               {m.label.split(" ")[0]}
@@ -1484,8 +1505,8 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="border-t border-gray-100 pt-3 mt-3">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Выберите день учебного года</h3>
+                  <div className="border-t border-gray-100 dark:border-slate-800 pt-3 mt-3">
+                    <h3 className="text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest px-1">Выберите день учебного года</h3>
                   </div>
                   
                   <div className="flex gap-2 overflow-x-auto py-1 px-1 no-scrollbar scroll-smooth" id="dates_swiper">
@@ -1525,21 +1546,21 @@ export default function App() {
                               : isSelected
                               ? "bg-blue-700 border-2 border-blue-700 text-white scale-100 "
                               : isToday
-                                ? "bg-blue-50/70 border-2 border-dashed border-blue-600 text-blue-900 font-extrabold"
-                                : "bg-white border-gray-200 hover:bg-blue-50/20 text-slate-800"
+                                ? "bg-blue-50/70 dark:bg-blue-950/70 border-2 border-dashed border-blue-600 dark:border-blue-400 text-blue-900 dark:text-blue-300 font-extrabold"
+                                : "bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-blue-50/20 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200"
                           }`}
                         >
-                          <span className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-blue-200" : isToday ? "text-blue-700" : isSunday ? "text-rose-500" : "text-gray-400"}`}>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${isSelected ? "text-blue-200" : isToday ? "text-blue-700 dark:text-blue-400" : isSunday ? "text-rose-500 dark:text-rose-400" : "text-gray-400 dark:text-slate-400"}`}>
                             {dayShort}
                           </span>
                           <span className="text-md font-black tracking-tighter mt-0.5">{dayNum}</span>
-                          <span className={`text-[9px] uppercase font-bold tracking-widest ${isSelected ? "text-blue-100" : isToday ? "text-blue-700" : "text-gray-400"}`}>
+                          <span className={`text-[9px] uppercase font-bold tracking-widest ${isSelected ? "text-blue-100" : isToday ? "text-blue-700 dark:text-blue-400" : "text-gray-400 dark:text-slate-400"}`}>
                             {monthShort}
                           </span>
 
                           {/* Class list indicator dot */}
                           {lessonsCount > 0 && (
-                            <span className={`w-1.5 h-1.5 rounded-none mt-1.5 ${isSelected ? "bg-white" : "bg-blue-700"}`} />
+                            <span className={`w-1.5 h-1.5 rounded-none mt-1.5 ${isSelected ? "bg-white" : "bg-blue-700 dark:bg-blue-400"}`} />
                           )}
                         </button>
                       );
@@ -1550,11 +1571,11 @@ export default function App() {
 
               {/* SCREEN LOADER SKELETON WITH TRANSITION */}
               {loading ? (
-                <div className="flex flex-col items-center justify-center py-16 px-4 bg-white border border-gray-200 rounded-none space-y-4 shadow-none" id="timeline_loading">
-                  <div className="w-10 h-10 border-3 border-blue-700 border-t-transparent rounded-full animate-spin"></div>
+                <div className="flex flex-col items-center justify-center py-16 px-4 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-none space-y-4 shadow-none" id="timeline_loading">
+                  <div className="w-10 h-10 border-3 border-blue-700 dark:border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                   <div className="text-center space-y-2">
-                    <p className="text-xs font-bold text-slate-900 uppercase tracking-widest animate-pulse">Запрос в ведомственную базу данных...</p>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Загружаем список учебных пар...</p>
+                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest animate-pulse">Запрос в ведомственную базу данных...</p>
+                    <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider">Загружаем список учебных пар...</p>
                   </div>
                 </div>
               ) : (
@@ -1573,19 +1594,19 @@ export default function App() {
                     >
                       {/* Active Day Meta Summary header */}
                       {selectedDate && (
-                        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b-2 border-slate-900 pb-4 px-0.5" id="timeline_header_block">
+                        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 border-b-2 border-slate-900 dark:border-slate-700 pb-4 px-0.5" id="timeline_header_block">
                           <div>
-                            <h3 className="text-md md:text-xl font-black uppercase tracking-tight text-slate-900" id="current_date_subtitle">
+                            <h3 className="text-md md:text-xl font-black uppercase tracking-tight text-slate-900 dark:text-slate-100" id="current_date_subtitle">
                               {selectedDate.toLocaleDateString("ru-RU", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                             </h3>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
-                              Распределение занятий: <span className="font-extrabold text-blue-700">{filteredTimelineLessons.length} пар</span>
+                            <p className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest mt-1">
+                              Распределение занятий: <span className="font-extrabold text-blue-700 dark:text-blue-400">{filteredTimelineLessons.length} пар</span>
                             </p>
                           </div>
                           
                           {/* Indicator which academic loop week is this (Odd or Even) */}
                           {filteredTimelineLessons.length > 0 && (
-                            <span className="text-[10px] uppercase font-bold tracking-widest bg-blue-100 text-blue-800 border border-blue-200 px-3 py-1 rounded-none">
+                            <span className="text-[10px] uppercase font-bold tracking-widest bg-blue-100 dark:bg-blue-950/80 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-none">
                               {filteredTimelineLessons[0].weekType || "Учебный цикл"}
                             </span>
                           )}
@@ -1594,7 +1615,7 @@ export default function App() {
 
                       {/* Main lessons stack */}
                       {filteredTimelineLessons.length > 0 ? (
-                        <div className="relative pl-4 space-y-6 before:absolute before:left-7 before:top-4 before:bottom-4 before:w-0.5 before:bg-gray-200" id="timeline_lessons_scroller">
+                        <div className="relative pl-4 space-y-6 before:absolute before:left-7 before:top-4 before:bottom-4 before:w-0.5 before:bg-gray-200 dark:before:bg-slate-700" id="timeline_lessons_scroller">
                           {filteredTimelineLessons.map((lesson, idx) => {
                             const badge = getBadgeTypeStyles(lesson.subject);
                             return (
@@ -1607,49 +1628,49 @@ export default function App() {
                                 id={`timeline_lesson_item_${idx}`}
                               >
                                 {/* Sharp square counter pin in vertical axis */}
-                                <div className="absolute left-1.5 top-2.5 w-4 h-4 rounded-none border-2 border-slate-900 bg-white flex items-center justify-center z-10">
+                                <div className="absolute left-1.5 top-2.5 w-4 h-4 rounded-none border-2 border-slate-900 dark:border-slate-500 bg-white dark:bg-slate-800 flex items-center justify-center z-10">
                                   <span className={`w-1.5 h-1.5 rounded-none ${badge.bullet}`} />
                                 </div>
 
                                 {/* Lesson Number & Time block */}
                                 <div className="ml-8 md:ml-10 md:w-28 shrink-0 pt-0.5">
-                                  <span className="font-sans text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Пара {lesson.lessonNumber}</span>
-                                  <span className="text-sm font-bold font-mono text-blue-700 flex items-center gap-1 mt-0.5">
-                                    <Clock className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                                  <span className="font-sans text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest block">Пара {lesson.lessonNumber}</span>
+                                  <span className="text-sm font-bold font-mono text-blue-700 dark:text-blue-400 flex items-center gap-1 mt-0.5">
+                                    <Clock className="w-3.5 h-3.5 text-blue-700 dark:text-blue-400 shrink-0" />
                                     {lesson.time || "Нет времени"}
                                   </span>
                                 </div>
 
                                 {/* Main Class Info card */}
-                                <div className="flex-1 w-full bg-white border border-gray-200 p-5 rounded-none hover:bg-blue-50/20 transition-all">
+                                <div className="flex-1 w-full bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-5 rounded-none hover:bg-blue-50/20 dark:hover:bg-slate-800/60 transition-all">
                                   <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
                                     <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 border ${badge.bg}`}>
                                       {badge.label}
                                     </span>
                                     {lesson.classroom && (
-                                      <span className="text-[9px] font-bold bg-gray-100 text-gray-605 border border-gray-200 px-2 py-0.5 rounded-none flex items-center gap-1 uppercase tracking-wide">
-                                        <MapPin className="w-2.5 h-2.5 text-gray-500" />
+                                      <span className="text-[9px] font-bold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700 px-2 py-0.5 rounded-none flex items-center gap-1 uppercase tracking-wide">
+                                        <MapPin className="w-2.5 h-2.5 text-gray-500 dark:text-slate-400" />
                                         Ауд. {lesson.classroom.slice(2)}
                                       </span>
                                     )}
                                   </div>
 
-                                  <h4 className="text-sm md:text-base font-bold text-slate-900 leading-tight uppercase tracking-tight">
+                                  <h4 className="text-sm md:text-base font-bold text-slate-900 dark:text-slate-100 leading-tight uppercase tracking-tight">
                                     {lesson.subject}
                                   </h4>
 
                                   {/* Teacher & Stream flows */}
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-150 text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-150 dark:border-slate-800 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-slate-400">
                                     {lesson.teacher && (
                                       <div className="flex items-center gap-1.5" title="Преподаватель">
-                                        <User className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                        <User className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 shrink-0" />
                                         <span className="truncate">{lesson.teacher}</span>
                                       </div>
                                     )}
                                     {lesson.stream && (
                                       <div className="flex items-center gap-1.5 text-[10px]" title="Поток">
-                                        <Layers className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                        <span className="truncate text-gray-400">Поток: {lesson.stream}</span>
+                                        <Layers className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500 shrink-0" />
+                                        <span className="truncate text-gray-400 dark:text-slate-400">Поток: {lesson.stream}</span>
                                       </div>
                                     )}
                                   </div>
@@ -1664,22 +1685,22 @@ export default function App() {
                         <motion.div
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="flex flex-col items-center justify-center py-16 px-6 bg-white border border-gray-200 rounded-none text-center shadow-none space-y-4"
+                          className="flex flex-col items-center justify-center py-16 px-6 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-none text-center shadow-none space-y-4"
                           id="empty_lessons_day"
                         >
-                          <div className="w-16 h-16 bg-blue-50 text-blue-700 rounded-none flex items-center justify-center border-2 border-blue-700">
+                          <div className="w-16 h-16 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 rounded-none flex items-center justify-center border-2 border-blue-700 dark:border-blue-500">
                             <Sparkles className="w-8 h-8" />
                           </div>
                           <div className="space-y-1">
-                            <h4 className="text-base font-bold uppercase tracking-wide text-slate-900">Свободный день!</h4>
-                            <p className="text-xs text-gray-500 uppercase tracking-widest max-w-sm">
+                            <h4 className="text-base font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">Свободный день!</h4>
+                            <p className="text-xs text-gray-500 dark:text-slate-400 uppercase tracking-widest max-w-sm">
                               {searchQuery ? "По вашему поисковому запросу занятий не найдено" : "На этот день в ведомости СибУПК нет назначенных пар."}
                             </p>
                           </div>
                           {searchQuery && (
                             <button
                               onClick={() => setSearchQuery("")}
-                              className="text-xs bg-blue-50 hover:bg-blue-100 border border-blue-250 text-blue-700 font-bold px-4 py-2 rounded-none cursor-pointer uppercase tracking-wider transition-colors"
+                              className="text-xs bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 border border-blue-250 dark:border-blue-800 text-blue-700 dark:text-blue-400 font-bold px-4 py-2 rounded-none cursor-pointer uppercase tracking-wider transition-colors"
                             >
                               Сбросить фильтр поиска
                             </button>
@@ -1721,15 +1742,15 @@ export default function App() {
                         const isSunday = dateObj.getDay() === 0;
 
                         return (
-                          <div key={dIdx} className="bg-white border border-gray-200 rounded-none p-5 shadow-none" id={`full_week_day_${dIdx}`}>
-                            <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-3">
+                          <div key={dIdx} className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-none p-5 shadow-none" id={`full_week_day_${dIdx}`}>
+                            <div className="flex items-center justify-between border-b-2 border-slate-900 dark:border-slate-700 pb-3 mb-3">
                               <div className="flex items-center gap-2">
-                                <span className={`text-sm font-extrabold uppercase tracking-widest ${isSunday ? "text-rose-600" : "text-blue-700"}`}>
+                                <span className={`text-sm font-extrabold uppercase tracking-widest ${isSunday ? "text-rose-600 dark:text-rose-400" : "text-blue-700 dark:text-blue-400"}`}>
                                   {formattedDayName}
                                 </span>
-                                <span className="text-xs text-gray-400 font-bold uppercase tracking-wider">({str})</span>
+                                <span className="text-xs text-gray-400 dark:text-slate-400 font-bold uppercase tracking-wider">({str})</span>
                               </div>
-                              <span className="text-[10px] bg-gray-100 text-gray-650 border border-gray-200 px-2.5 py-0.5 rounded-none font-bold uppercase tracking-wider">
+                              <span className="text-[10px] bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700 px-2.5 py-0.5 rounded-none font-bold uppercase tracking-wider">
                                 {lessonsForDay.length} пар
                               </span>
                             </div>
@@ -1741,12 +1762,12 @@ export default function App() {
                                   return (
                                     <div
                                       key={idx}
-                                      className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-blue-50/20 rounded-none border border-gray-200 transition-all text-xs"
+                                      className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-800/60 hover:bg-blue-50/20 dark:hover:bg-slate-800 rounded-none border border-gray-200 dark:border-slate-700/60 transition-all text-xs"
                                     >
                                       {/* Index/Time Block */}
-                                      <div className="w-20 shrink-0 border-r border-gray-200 pr-2">
-                                        <span className="font-bold text-slate-800 font-mono text-[11px] uppercase block">Пара {lesson.lessonNumber}</span>
-                                        <span className="text-[10px] text-gray-400 block font-mono mt-0.5">{lesson.time}</span>
+                                      <div className="w-20 shrink-0 border-r border-gray-200 dark:border-slate-700 pr-2">
+                                        <span className="font-bold text-slate-800 dark:text-slate-200 font-mono text-[11px] uppercase block">Пара {lesson.lessonNumber}</span>
+                                        <span className="text-[10px] text-gray-400 dark:text-slate-400 block font-mono mt-0.5">{lesson.time}</span>
                                       </div>
 
                                       {/* Core details */}
@@ -1756,18 +1777,18 @@ export default function App() {
                                             {badge.label}
                                           </span>
                                           {lesson.classroom && (
-                                            <span className="text-[9px] font-bold text-gray-500 uppercase flex items-center gap-0.5">
+                                            <span className="text-[9px] font-bold text-gray-500 dark:text-slate-400 uppercase flex items-center gap-0.5">
                                               <MapPin className="w-2.5 h-2.5" />
                                               Ауд. {lesson.classroom.slice(2)}
                                             </span>
                                           )}
                                         </div>
-                                        <h5 className="font-bold text-slate-900 uppercase tracking-tight truncate leading-tight">
+                                        <h5 className="font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight truncate leading-tight">
                                           {lesson.subject}
                                         </h5>
                                         {lesson.teacher && (
-                                          <p className="text-[10px] text-gray-400 mt-0.5 truncate flex items-center gap-1 select-none font-medium uppercase tracking-wider">
-                                            <User className="w-3 h-3 text-gray-300 shrink-0" />
+                                          <p className="text-[10px] text-gray-400 dark:text-slate-400 mt-0.5 truncate flex items-center gap-1 select-none font-medium uppercase tracking-wider">
+                                            <User className="w-3 h-3 text-gray-300 dark:text-slate-500 shrink-0" />
                                             {lesson.teacher}
                                           </p>
                                         )}
@@ -1777,7 +1798,7 @@ export default function App() {
                                 })}
                               </div>
                             ) : (
-                              <p className="text-xs text-gray-450 uppercase font-bold tracking-widest text-center py-2 select-none">
+                              <p className="text-xs text-gray-400 dark:text-slate-400 uppercase font-bold tracking-widest text-center py-2 select-none">
                                 Занятий нет • Выходной день
                               </p>
                             )}
@@ -1794,26 +1815,26 @@ export default function App() {
       </main>
 
       {/* Structured Minimal & Geometric Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-12 py-8 text-center text-xs text-gray-500 space-y-3">
+      <footer className="bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800 mt-12 py-8 text-center text-xs text-gray-500 dark:text-slate-400 space-y-3">
         {/* Dynamic Horizontal Legend */}
-        <div className="max-w-md mx-auto flex flex-wrap gap-4 items-center justify-center text-[10px] font-bold text-gray-400 uppercase tracking-widest py-2">
+        <div className="max-w-md mx-auto flex flex-wrap gap-4 items-center justify-center text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest py-2">
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 bg-blue-100 border border-blue-200"></div>
+            <div className="w-2.5 h-2.5 bg-blue-100 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800"></div>
             <span>Лекция</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 bg-emerald-100 border border-emerald-200"></div>
+            <div className="w-2.5 h-2.5 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800"></div>
             <span>Практика</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 bg-rose-100 border border-rose-200"></div>
+            <div className="w-2.5 h-2.5 bg-rose-100 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800"></div>
             <span>Зачет / Экзамен</span>
           </div>
         </div>
         
-        <p className="font-bold uppercase tracking-wider text-slate-800 text-[10px]">Система просмотра расписания Сибирского Университета Потребительской Кооперации (СибУПК)</p>
-        <div className="max-w-md mx-auto px-4 flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-gray-400">
-          <CheckCircle className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+        <p className="font-bold uppercase tracking-wider text-slate-800 dark:text-slate-300 text-[10px]">Система просмотра расписания Сибирского Университета Потребительской Кооперации (СибУПК)</p>
+        <div className="max-w-md mx-auto px-4 flex items-center justify-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-gray-400 dark:text-slate-400">
+          <CheckCircle className="w-3.5 h-3.5 text-blue-700 dark:text-blue-400 shrink-0" />
           <span>Синхронизация с системой вуза выполнена</span>
         </div>
       </footer>
