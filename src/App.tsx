@@ -24,8 +24,13 @@ import {
   Bookmark,
   Smartphone,
   Moon,
-  Sun
+  Sun,
+  GraduationCap,
+  Users,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
+import allIndexedGroups from "./data/groups.json";
 
 // Types for select options
 interface Option {
@@ -54,6 +59,29 @@ interface SavedPreferences {
   groupLabel: string;
 }
 
+export interface TeacherInfo {
+  fio: string;
+  id_KodKaf: string;
+  departmentName: string;
+}
+
+export interface DepartmentInfo {
+  id: string;
+  name: string;
+}
+
+export interface IndexedGroup {
+  id_Forma: string;
+  formaLabel: string;
+  id_Fak: string;
+  fakLabel: string;
+  Kurs: string;
+  kursLabel?: string;
+  NamePodGrup: string;
+  groupLabel: string;
+  shortName: string;
+}
+
 // Helper to visually shorten group names
 function shortenGroupName(name: string): string {
   if (!name) return "";
@@ -62,6 +90,16 @@ function shortenGroupName(name: string): string {
     return name.substring(0, idx).trim();
   }
   return name;
+}
+
+// Helper to format classroom string gracefully
+function formatClassroom(room: string): string {
+  if (!room) return "";
+  const trimmed = room.trim();
+  if (trimmed.startsWith("а.")) {
+    return `Ауд. ${trimmed.slice(2).trim()}`;
+  }
+  return trimmed;
 }
 
 // Helper to convert date to "DD.MM.YYYY"
@@ -123,6 +161,9 @@ function findDefaultStudyDate(dates: Date[]): Date {
 
 // Resolve the current/nearest academic week range based on current date
 function findCurrentWeekRange(weeks: Option[], today: Date): string {
+  if (weeks.length === 0) return "";
+
+  const parsedWeeks: { value: string; d1: Date; d2: Date }[] = [];
   for (const wk of weeks) {
     const match = wk.value.match(/(\d{2})\.(\d{2})\.(\d{4})\s*-\s*(\d{2})\.(\d{2})\.(\d{4})/);
     if (match) {
@@ -130,13 +171,23 @@ function findCurrentWeekRange(weeks: Option[], today: Date): string {
       const d2 = new Date(parseInt(match[6]), parseInt(match[5]) - 1, parseInt(match[4]));
       d1.setHours(0, 0, 0, 0);
       d2.setHours(23, 59, 59, 999);
+      parsedWeeks.push({ value: wk.value, d1, d2 });
       if (today >= d1 && today <= d2) {
         return wk.value;
       }
     }
   }
-  // Alternately return the latest week available
-  return weeks.length > 0 ? weeks[weeks.length - 1].value : "";
+
+  if (parsedWeeks.length > 0) {
+    if (today < parsedWeeks[0].d1) {
+      return parsedWeeks[0].value;
+    }
+    if (today > parsedWeeks[parsedWeeks.length - 1].d2) {
+      return parsedWeeks[parsedWeeks.length - 1].value;
+    }
+  }
+
+  return weeks[0].value;
 }
 
 // Helper to safely fetch from API and avoid crashing with unexpected characters from HTML error pages
@@ -201,6 +252,38 @@ export default function App() {
   const [viewMode, setViewMode] = useState<"day" | "week">("day"); // 'day' timeline or full fortnight stacked list
   const [favorites, setFavorites] = useState<SavedPreferences[]>([]);
 
+  // Mode: Students (groups) vs Teachers
+  const [scheduleType, setScheduleType] = useState<"student" | "teacher">(() => {
+    if (typeof window === "undefined") return "student";
+    return (localStorage.getItem("sibupk_active_mode") as "student" | "teacher") || "student";
+  });
+
+  // Quick Group Search state
+  const [groupSearchQuery, setGroupSearchQuery] = useState<string>("");
+  const [showManualSteps, setShowManualSteps] = useState<boolean>(false);
+
+  // Teacher Schedule states
+  const [teachersList, setTeachersList] = useState<TeacherInfo[]>([]);
+  const [departmentsList, setDepartmentsList] = useState<DepartmentInfo[]>([]);
+  const [selectedTeacher, setSelectedTeacher] = useState<TeacherInfo | null>(() => {
+    if (typeof window === "undefined") return null;
+    const saved = localStorage.getItem("sibupk_selected_teacher");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (_) { return null; }
+    }
+    return null;
+  });
+  const [teacherFavorites, setTeacherFavorites] = useState<TeacherInfo[]>(() => {
+    if (typeof window === "undefined") return [];
+    const saved = localStorage.getItem("sibupk_favorite_teachers");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (_) { return []; }
+    }
+    return [];
+  });
+  const [teacherSearchQuery, setTeacherSearchQuery] = useState<string>("");
+  const [teacherDeptFilter, setTeacherDeptFilter] = useState<string>("");
+
   // Active clock state
   const [currentLocalTime, setCurrentLocalTime] = useState<string>("");
   const [isDarkTheme, setIsDarkTheme] = useState<boolean>(() => {
@@ -260,7 +343,7 @@ export default function App() {
   }, []);
 
   // --- STAGE Loading logic ---
-  // On Mount: Detect saved group preferences or load initial Study Forms
+  // On Mount: Detect saved preferences or load initial options
   useEffect(() => {
     // Load favorite groups
     const savedFavs = localStorage.getItem("sibupk_favorite_groups");
@@ -269,6 +352,33 @@ export default function App() {
         setFavorites(JSON.parse(savedFavs));
       } catch (err) {
         console.error("Failed to parse favorite groups", err);
+      }
+    }
+
+    // Load favorite teachers
+    const savedTeacherFavs = localStorage.getItem("sibupk_favorite_teachers");
+    if (savedTeacherFavs) {
+      try {
+        setTeacherFavorites(JSON.parse(savedTeacherFavs));
+      } catch (err) {
+        console.error("Failed to parse favorite teachers", err);
+      }
+    }
+
+    // Warm up teachers list in background
+    loadTeachersList();
+
+    const activeMode = localStorage.getItem("sibupk_active_mode");
+    if (activeMode === "teacher") {
+      const savedTeach = localStorage.getItem("sibupk_selected_teacher");
+      if (savedTeach) {
+        try {
+          const parsedTeacher: TeacherInfo = JSON.parse(savedTeach);
+          setSelectedTeacher(parsedTeacher);
+          setIsWizardMode(false);
+          fetchTeacherSchedule(parsedTeacher);
+          return;
+        } catch (_) {}
       }
     }
 
@@ -307,28 +417,292 @@ export default function App() {
     fetchFullDataAndSchedule(group);
   };
 
+  // Quick Group Search filter over 693 indexed groups
+  const filteredIndexedGroups = useMemo(() => {
+    if (!groupSearchQuery.trim()) return [];
+    const q = groupSearchQuery.trim().toLowerCase();
+    return (allIndexedGroups as IndexedGroup[]).filter(
+      (g) =>
+        g.groupLabel.toLowerCase().includes(q) ||
+        g.shortName.toLowerCase().includes(q) ||
+        g.fakLabel.toLowerCase().includes(q)
+    );
+  }, [groupSearchQuery]);
+
+  const handleSelectIndexedGroup = (group: IndexedGroup) => {
+    setIdForma(group.id_Forma);
+    setIdFak(group.id_Fak);
+    setKurs(group.Kurs);
+    setNamePodGrup(group.NamePodGrup);
+    setGroupSearchQuery("");
+    setIsWizardMode(false);
+    setScheduleType("student");
+    localStorage.setItem("sibupk_active_mode", "student");
+
+    const pref: SavedPreferences = {
+      id_Forma: group.id_Forma,
+      id_Fak: group.id_Fak,
+      Kurs: group.Kurs,
+      NamePodGrup: group.NamePodGrup,
+      RangeNedel: "",
+      groupLabel: group.groupLabel,
+    };
+    fetchFullDataAndSchedule(pref);
+  };
+
+  // Load teachers list
+  const loadTeachersList = async () => {
+    try {
+      const data = await safeFetchJson("/api/teachers", { method: "GET" });
+      if (data.success) {
+        setTeachersList(data.teachers || []);
+        setDepartmentsList(data.departments || []);
+      }
+    } catch (err: any) {
+      console.warn("Could not load teachers:", err.message);
+    }
+  };
+
+  // Filter teachers by query and department
+  const filteredTeachers = useMemo(() => {
+    let list = teachersList;
+    if (teacherDeptFilter) {
+      list = list.filter((t) => t.id_KodKaf === teacherDeptFilter);
+    }
+    if (teacherSearchQuery.trim()) {
+      const q = teacherSearchQuery.trim().toLowerCase();
+      list = list.filter((t) => t.fio.toLowerCase().includes(q));
+    }
+    return list;
+  }, [teachersList, teacherDeptFilter, teacherSearchQuery]);
+
+  // Load teacher schedule
+  const fetchTeacherSchedule = async (teacher: TeacherInfo, week?: string) => {
+    setLoading(true);
+    setErrorMessage(null);
+    setSelectedTeacher(teacher);
+    setIsWizardMode(false);
+    setScheduleType("teacher");
+
+    localStorage.setItem("sibupk_selected_teacher", JSON.stringify(teacher));
+    localStorage.setItem("sibupk_active_mode", "teacher");
+
+    const cacheKey = "sibupk_cache_teacher_" + teacher.fio;
+    const cachedDataStr = localStorage.getItem(cacheKey);
+
+    if (cachedDataStr) {
+      try {
+        const cached = JSON.parse(cachedDataStr);
+        if (cached && Array.isArray(cached.schedule) && Array.isArray(cached.weeksList)) {
+          setWeeksList(cached.weeksList);
+          setScheduleData(cached.schedule);
+          const cachedWeeks: Option[] = cached.weeksList;
+          const targetWeek = week || (cachedWeeks.length > 0 ? cachedWeeks[0].value : "");
+          setLoadedWeeks(cachedWeeks.map((wk) => wk.value));
+          setRangeNedel(targetWeek);
+
+          const allDates: Date[] = [];
+          const dateStringsSeen = new Set<string>();
+          cachedWeeks.forEach((wk: Option) => {
+            const dates = generateRangeDates(wk.value);
+            dates.forEach((d) => {
+              const str = formatDateStr(d);
+              if (!dateStringsSeen.has(str)) {
+                dateStringsSeen.add(str);
+                allDates.push(d);
+              }
+            });
+          });
+          allDates.sort((a, b) => a.getTime() - b.getTime());
+
+          const today = new Date();
+          const todayStr = formatDateStr(today);
+          const hasToday = allDates.some((d) => formatDateStr(d) === todayStr);
+          if (hasToday) {
+            const todayDate = allDates.find((d) => formatDateStr(d) === todayStr);
+            if (todayDate) setSelectedDate(todayDate);
+          } else if (allDates.length > 0) {
+            setSelectedDate(findDefaultStudyDate(allDates));
+          }
+
+          setIsCachedData(true);
+          setCacheTimestamp(cached.timestamp || Date.now());
+          setLoading(false);
+        }
+      } catch (e) {
+        console.warn("Failed to restore teacher schedule from cache", e);
+      }
+    }
+
+    try {
+      const dataWeeks = await safeFetchJson("/api/teacher-schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          FIO: teacher.fio,
+          id_KodKaf: teacher.id_KodKaf,
+        }),
+      });
+
+      let ws: Option[] = [];
+      if (dataWeeks.success && dataWeeks.options?.weeks && dataWeeks.options.weeks.length > 0) {
+        ws = dataWeeks.options.weeks;
+      }
+
+      const today = new Date();
+      const currentRealWeek = findCurrentWeekRange(ws, today);
+      const targetWeek = week || currentRealWeek || (ws.length > 0 ? ws[0].value : "");
+
+      const dataSched = await safeFetchJson("/api/teacher-schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          FIO: teacher.fio,
+          id_KodKaf: teacher.id_KodKaf,
+          RangeNedel: targetWeek,
+        }),
+      });
+
+      if (dataSched.success) {
+        const finalWeeks = ws.length > 0 ? ws : (dataSched.options?.weeks || []);
+        setWeeksList(finalWeeks);
+        setScheduleData(dataSched.schedule || []);
+        setLoadedWeeks([targetWeek]);
+        setRangeNedel(targetWeek);
+        setIsCachedData(false);
+        setCacheTimestamp(null);
+
+        localStorage.setItem(cacheKey, JSON.stringify({
+          weeksList: finalWeeks,
+          schedule: dataSched.schedule || [],
+          timestamp: Date.now()
+        }));
+
+        const allDates: Date[] = [];
+        const dateStringsSeen = new Set<string>();
+        finalWeeks.forEach((wk: Option) => {
+          const dates = generateRangeDates(wk.value);
+          dates.forEach((d) => {
+            const str = formatDateStr(d);
+            if (!dateStringsSeen.has(str)) {
+              dateStringsSeen.add(str);
+              allDates.push(d);
+            }
+          });
+        });
+        allDates.sort((a, b) => a.getTime() - b.getTime());
+
+        const todayStr = formatDateStr(today);
+        const hasToday = allDates.some((d) => formatDateStr(d) === todayStr);
+        if (hasToday) {
+          const todayDate = allDates.find((d) => formatDateStr(d) === todayStr);
+          setSelectedDate(todayDate || findDefaultStudyDate(allDates));
+        } else if (allDates.length > 0) {
+          setSelectedDate(findDefaultStudyDate(allDates));
+        }
+      } else {
+        throw new Error(dataSched.error || "Не удалось загрузить расписание преподавателя");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Ошибка подключения к сервису преподавателей");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isCurrentTeacherFavorite = useMemo(() => {
+    if (!selectedTeacher) return false;
+    return teacherFavorites.some((f) => f.fio === selectedTeacher.fio);
+  }, [teacherFavorites, selectedTeacher]);
+
+  const handleSwitchScheduleType = (type: "student" | "teacher") => {
+    setScheduleType(type);
+    localStorage.setItem("sibupk_active_mode", type);
+    if (type === "student") {
+      const saved = localStorage.getItem("sibupk_selected_schedule");
+      if (saved) {
+        try {
+          const pref: SavedPreferences = JSON.parse(saved);
+          if (pref.NamePodGrup) {
+            setIdForma(pref.id_Forma);
+            setIdFak(pref.id_Fak);
+            setKurs(pref.Kurs);
+            setNamePodGrup(pref.NamePodGrup);
+            setIsWizardMode(false);
+            fetchFullDataAndSchedule(pref);
+            return;
+          }
+        } catch (_) {}
+      }
+      setIsWizardMode(true);
+      if (formsList.length === 0) loadFormOptions();
+    } else {
+      if (teachersList.length === 0) {
+        loadTeachersList();
+      }
+      const savedTeach = localStorage.getItem("sibupk_selected_teacher");
+      if (savedTeach) {
+        try {
+          const parsedTeacher: TeacherInfo = JSON.parse(savedTeach);
+          setSelectedTeacher(parsedTeacher);
+          setIsWizardMode(false);
+          fetchTeacherSchedule(parsedTeacher);
+          return;
+        } catch (_) {}
+      }
+      setIsWizardMode(true);
+    }
+  };
+
+  const handleResetCurrentSelection = () => {
+    if (scheduleType === "teacher") {
+      setSelectedTeacher(null);
+      localStorage.removeItem("sibupk_selected_teacher");
+      setIsWizardMode(true);
+      setScheduleData([]);
+      setWeeksList([]);
+      setLoadedWeeks([]);
+      setSelectedDate(null);
+      if (teachersList.length === 0) loadTeachersList();
+    } else {
+      resetGroupPreference();
+    }
+  };
+
   const isCurrentGroupFavorite = useMemo(() => {
     return favorites.some((f) => f.NamePodGrup === NamePodGrup);
   }, [favorites, NamePodGrup]);
 
   const toggleFavorite = () => {
-    if (!NamePodGrup) return;
-    let updated: SavedPreferences[];
-    if (isCurrentGroupFavorite) {
-      updated = favorites.filter((f) => f.NamePodGrup !== NamePodGrup);
+    if (scheduleType === "teacher") {
+      if (!selectedTeacher) return;
+      let updated: TeacherInfo[];
+      if (isCurrentTeacherFavorite) {
+        updated = teacherFavorites.filter((f) => f.fio !== selectedTeacher.fio);
+      } else {
+        updated = [...teacherFavorites, selectedTeacher];
+      }
+      setTeacherFavorites(updated);
+      localStorage.setItem("sibupk_favorite_teachers", JSON.stringify(updated));
     } else {
-      const newFav: SavedPreferences = {
-        id_Forma,
-        id_Fak,
-        Kurs,
-        NamePodGrup,
-        RangeNedel,
-        groupLabel: NamePodGrup
-      };
-      updated = [...favorites, newFav];
+      if (!NamePodGrup) return;
+      let updated: SavedPreferences[];
+      if (isCurrentGroupFavorite) {
+        updated = favorites.filter((f) => f.NamePodGrup !== NamePodGrup);
+      } else {
+        const newFav: SavedPreferences = {
+          id_Forma,
+          id_Fak,
+          Kurs,
+          NamePodGrup,
+          RangeNedel,
+          groupLabel: NamePodGrup
+        };
+        updated = [...favorites, newFav];
+      }
+      setFavorites(updated);
+      localStorage.setItem("sibupk_favorite_groups", JSON.stringify(updated));
     }
-    setFavorites(updated);
-    localStorage.setItem("sibupk_favorite_groups", JSON.stringify(updated));
   };
 
   const loadFormOptions = async () => {
@@ -750,30 +1124,46 @@ export default function App() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const data = await safeFetchJson("/api/schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id_Forma,
-          id_Fak,
-          Kurs,
-          NamePodGrup,
-          RangeNedel: weekVal
-        }),
-      });
+      let data: any;
+      if (scheduleType === "teacher" && selectedTeacher) {
+        data = await safeFetchJson("/api/teacher-schedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            FIO: selectedTeacher.fio,
+            id_KodKaf: selectedTeacher.id_KodKaf,
+            RangeNedel: weekVal,
+          }),
+        });
+      } else {
+        data = await safeFetchJson("/api/schedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id_Forma,
+            id_Fak,
+            Kurs,
+            NamePodGrup,
+            RangeNedel: weekVal
+          }),
+        });
+      }
+
       if (data.success && data.schedule) {
         setScheduleData((prev) => {
           const merged = [...prev];
-          const existingKeys = new Set(merged.map((item) => `${item.date}_${item.lessonNumber}_${item.subject}`));
+          const existingKeys = new Set(merged.map((item) => `${item.date}_${item.lessonNumber}_${item.subject}_${item.classroom}`));
           data.schedule.forEach((lesson: ScheduleItem) => {
-            const key = `${lesson.date}_${lesson.lessonNumber}_${lesson.subject}`;
+            const key = `${lesson.date}_${lesson.lessonNumber}_${lesson.subject}_${lesson.classroom}`;
             if (!existingKeys.has(key)) {
               merged.push(lesson);
             }
           });
 
           // Save merged schedule to localStorage cache synchronously
-          const cacheKey = "sibupk_cache_" + NamePodGrup;
+          const cacheKey = scheduleType === "teacher" && selectedTeacher
+            ? "sibupk_cache_teacher_" + selectedTeacher.fio
+            : "sibupk_cache_" + NamePodGrup;
           localStorage.setItem(cacheKey, JSON.stringify({
             weeksList,
             schedule: merged,
@@ -789,14 +1179,16 @@ export default function App() {
         setLoadedWeeks((prev) => [...prev, weekVal]);
         setRangeNedel(weekVal);
         
-        const saved = localStorage.getItem("sibupk_selected_schedule");
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            parsed.RangeNedel = weekVal;
-            localStorage.setItem("sibupk_selected_schedule", JSON.stringify(parsed));
-          } catch (err) {
-            console.error("Failed to update saved schedule reference", err);
+        if (scheduleType === "student") {
+          const saved = localStorage.getItem("sibupk_selected_schedule");
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              parsed.RangeNedel = weekVal;
+              localStorage.setItem("sibupk_selected_schedule", JSON.stringify(parsed));
+            } catch (err) {
+              console.error("Failed to update saved schedule reference", err);
+            }
           }
         }
 
@@ -829,6 +1221,7 @@ export default function App() {
     setWeeksList([]);
     setIsWizardMode(true);
     setSelectedDate(null);
+    setShowManualSteps(false);
     loadFormOptions();
   };
 
@@ -959,7 +1352,8 @@ export default function App() {
         (l) =>
           l.subject.toLowerCase().includes(q) ||
           l.teacher.toLowerCase().includes(q) ||
-          l.classroom.toLowerCase().includes(q)
+          l.classroom.toLowerCase().includes(q) ||
+          (l.stream && l.stream.toLowerCase().includes(q))
       );
     }
 
@@ -1024,7 +1418,7 @@ export default function App() {
         bullet: "bg-emerald-600 dark:bg-emerald-500 font-bold"
       };
     }
-    if (cleanSub.includes("(лаб)") || cleanSub.includes("лабаратор") || cleanSub.includes("лабараторная")) {
+    if (cleanSub.includes("(лаб)") || cleanSub.includes("лаборатор") || cleanSub.includes("лабаратор")) {
       return {
         label: "Лабораторная",
         bg: "bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
@@ -1086,12 +1480,14 @@ export default function App() {
             </button>
 
             {/* User preferences display (State Toggle) */}
-            {!isWizardMode && NamePodGrup && (
+            {!isWizardMode && ((scheduleType === "student" && NamePodGrup) || (scheduleType === "teacher" && selectedTeacher)) && (
               <div className="flex flex-wrap items-center gap-3 bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-none p-2.5" id="saved_meta_panel">
                 <div className="text-left">
-                  <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Выбранная группа</p>
-                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight line-clamp-1 max-w-[200px]" title={NamePodGrup}>
-                    {shortenGroupName(NamePodGrup)}
+                  <p className="text-[10px] text-gray-400 dark:text-slate-400 font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                    {scheduleType === "teacher" ? "Преподаватель" : "Выбранная группа"}
+                  </p>
+                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-tight line-clamp-1 max-w-[200px]" title={scheduleType === "teacher" ? selectedTeacher?.fio : NamePodGrup}>
+                    {scheduleType === "teacher" ? selectedTeacher?.fio : shortenGroupName(NamePodGrup)}
                   </div>
                 </div>
 
@@ -1099,18 +1495,18 @@ export default function App() {
                 <button
                   onClick={toggleFavorite}
                   className={`px-2.5 py-1.5 border text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-all rounded-none flex items-center gap-1 ${
-                    isCurrentGroupFavorite
+                    (scheduleType === "teacher" ? isCurrentTeacherFavorite : isCurrentGroupFavorite)
                       ? "bg-amber-500 border-amber-600 text-white hover:bg-amber-600"
                       : "bg-white dark:bg-slate-800 border-gray-250 dark:border-slate-700 text-gray-500 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white"
                   }`}
                   id="toggle_favorite_btn"
-                  title={isCurrentGroupFavorite ? "Удалить из избранного" : "Добавить в избранное"}
+                  title={(scheduleType === "teacher" ? isCurrentTeacherFavorite : isCurrentGroupFavorite) ? "Удалить из избранного" : "Добавить в избранное"}
                 >
-                  {isCurrentGroupFavorite ? "★ В избранном" : "☆ В избранное"}
+                  {(scheduleType === "teacher" ? isCurrentTeacherFavorite : isCurrentGroupFavorite) ? "★ В избранном" : "☆ В избранное"}
                 </button>
 
                 <button
-                  onClick={resetGroupPreference}
+                  onClick={handleResetCurrentSelection}
                   className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-gray-100 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-400 border border-gray-200 dark:border-slate-700 text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none"
                   id="reset_preference_btn"
                 >
@@ -1125,8 +1521,38 @@ export default function App() {
       {/* Main Container Workspace */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-6" id="app_workspace">
         
-        {/* Favorite Groups Quick Bar */}
-        {favorites.length > 0 && (
+        {/* Mode Switcher Tabs (Students vs Teachers) */}
+        <div className="grid grid-cols-2 gap-2 mb-6" id="schedule_type_tabs">
+          <button
+            type="button"
+            onClick={() => handleSwitchScheduleType("student")}
+            className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-2 transition-all flex items-center justify-center gap-2 rounded-none cursor-pointer ${
+              scheduleType === "student"
+                ? "border-blue-700 bg-blue-700 text-white shadow-sm"
+                : "border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-500 dark:text-slate-400 hover:border-gray-300 dark:hover:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
+            }`}
+            id="tab_student_mode"
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span>Студентам (Группы)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSwitchScheduleType("teacher")}
+            className={`py-3 px-4 text-xs font-black uppercase tracking-wider border-2 transition-all flex items-center justify-center gap-2 rounded-none cursor-pointer ${
+              scheduleType === "teacher"
+                ? "border-blue-700 bg-blue-700 text-white shadow-sm"
+                : "border-gray-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-gray-500 dark:text-slate-400 hover:border-gray-300 dark:hover:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100"
+            }`}
+            id="tab_teacher_mode"
+          >
+            <User className="w-4 h-4" />
+            <span>Преподавателям</span>
+          </button>
+        </div>
+
+        {/* Favorite Groups Quick Bar (student mode) */}
+        {scheduleType === "student" && favorites.length > 0 && (
           <div className="mb-6 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 rounded-none shadow-none flex flex-col gap-2" id="favorites_bar">
             <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-2">
               <span className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -1159,6 +1585,48 @@ export default function App() {
                       className="p-1.5 border-l border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-gray-400 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors cursor-pointer rounded-none border-t-0 border-b-0 border-r-0"
                       title="Удалить из избранного"
                       id={`fav_del_btn_${fav.NamePodGrup}`}
+                    >
+                      <span className="text-xs font-bold px-1 select-none">×</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Favorite Teachers Quick Bar (teacher mode) */}
+        {scheduleType === "teacher" && teacherFavorites.length > 0 && (
+          <div className="mb-6 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 rounded-none shadow-none flex flex-col gap-2" id="teacher_favorites_bar">
+            <div className="flex items-center justify-between border-b border-gray-100 dark:border-slate-800 pb-2">
+              <span className="text-[10px] font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Bookmark className="w-3.5 h-3.5 text-blue-700 dark:text-blue-400 fill-blue-700 dark:fill-blue-400" />
+                Избранные преподаватели ({teacherFavorites.length})
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2 pt-1">
+              {teacherFavorites.map((fav) => {
+                const isActive = !isWizardMode && selectedTeacher?.fio === fav.fio;
+                return (
+                  <div key={fav.fio} className="flex items-center border border-gray-200 dark:border-slate-700" id={`fav_teacher_${fav.fio.replace(/\s+/g, '_')}`}>
+                    <button
+                      onClick={() => fetchTeacherSchedule(fav)}
+                      className={`text-xs font-bold uppercase tracking-tight px-3 py-1.5 transition-all cursor-pointer rounded-none flex items-center gap-1.5 border-none ${
+                        isActive
+                          ? "bg-blue-700 text-white font-extrabold"
+                          : "bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      <span>{fav.fio}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const updated = teacherFavorites.filter((f) => f.fio !== fav.fio);
+                        setTeacherFavorites(updated);
+                        localStorage.setItem("sibupk_favorite_teachers", JSON.stringify(updated));
+                      }}
+                      className="p-1.5 border-l border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-gray-400 dark:text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 transition-colors cursor-pointer rounded-none border-t-0 border-b-0 border-r-0"
+                      title="Удалить из избранного"
                     >
                       <span className="text-xs font-bold px-1 select-none">×</span>
                     </button>
@@ -1207,7 +1675,7 @@ export default function App() {
           {/* WIZARD SETUP FLOW */}
           {isWizardMode ? (
             <motion.div
-              key="wizard_flow"
+              key={`wizard_flow_${scheduleType}`}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
@@ -1215,135 +1683,346 @@ export default function App() {
               className="bg-white dark:bg-slate-900 border-2 border-slate-900 dark:border-slate-700 rounded-none shadow-none overflow-hidden"
               id="wizard_box"
             >
-              {/* Wizard Header Banner */}
-              <div className="bg-blue-700 p-6 md:p-8 text-white relative rounded-none">
-                <div className="absolute right-6 top-6 opacity-5 pointer-events-none">
-                  <Sparkles className="w-24 h-24" />
-                </div>
-                <div className="flex items-center gap-2 bg-white/10 border border-white/20 px-3 py-1 rounded-none text-[10px] font-bold uppercase tracking-widest w-max mb-3">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-200" />
-                  Информационная система
-                </div>
-                <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">Добро пожаловать к расписанию СибУПК</h2>
-                <p className="text-xs md:text-sm text-blue-100 mt-2 leading-relaxed font-medium uppercase tracking-wider opacity-90">
-                  Укажите параметры обучения для быстрой синхронизации напрямую с ведомостями вуза.
-                </p>
-              </div>
-
-              {/* Steps inputs holder */}
-              <div className="p-6 md:p-8 space-y-6 bg-white dark:bg-slate-900" id="inputs_holder">
-                
-                {/* Step 1: Form of Education */}
-                <div className="space-y-2" id="step_form_container">
-                  <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-3 block flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">1</span>
-                    Форма обучения
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={id_Forma}
-                      onChange={(e) => handleFormChange(e.target.value)}
-                      disabled={loading || formsList.length === 0}
-                      className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
-                      id="select_forma"
-                    >
-                      <option value="">-- Выберите форму обучения --</option>
-                      {formsList.map((f) => (
-                        <option key={f.value} value={f.value}>{f.label}</option>
-                      ))}
-                    </select>
+              {scheduleType === "student" ? (
+                <>
+                  {/* Student Wizard Header Banner */}
+                  <div className="bg-blue-700 p-6 md:p-8 text-white relative rounded-none">
+                    <div className="absolute right-6 top-6 opacity-5 pointer-events-none">
+                      <Sparkles className="w-24 h-24" />
+                    </div>
+                    <div className="flex items-center gap-2 bg-white/10 border border-white/20 px-3 py-1 rounded-none text-[10px] font-bold uppercase tracking-widest w-max mb-3">
+                      <GraduationCap className="w-3.5 h-3.5 text-blue-200" />
+                      Студентам
+                    </div>
+                    <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">Поиск расписания группы</h2>
+                    <p className="text-xs md:text-sm text-blue-100 mt-2 leading-relaxed font-medium uppercase tracking-wider opacity-90">
+                      Воспользуйтесь мгновенным поиском по названию группы или выберите её вручную по факультету и курсу.
+                    </p>
                   </div>
-                </div>
 
-                {/* Step 2: Faculty */}
-                {id_Forma && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="space-y-2"
-                    id="step_faculty_container"
-                  >
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2 block flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">2</span>
-                      Факультет / Отделение
-                    </label>
-                    <select
-                      value={id_Fak}
-                      onChange={(e) => handleFakChange(e.target.value)}
-                      disabled={loading || facultiesList.length === 0}
-                      className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
-                      id="select_fak"
-                    >
-                      <option value="">-- Выберите факультет --</option>
-                      {facultiesList.map((f) => (
-                        <option key={f.value} value={f.value}>{f.label}</option>
-                      ))}
-                    </select>
-                  </motion.div>
-                )}
+                  {/* Quick Group Search Box */}
+                  <div className="p-6 md:p-8 space-y-6 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800" id="quick_group_search_box">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-widest text-blue-700 dark:text-blue-400 flex items-center gap-2">
+                        <Search className="w-4 h-4" />
+                        Мгновенный поиск группы (все 690+ групп)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={groupSearchQuery}
+                          onChange={(e) => setGroupSearchQuery(e.target.value)}
+                          placeholder="Введите группу: ТД-11, ЭБ, ИСиП, ПСО, ЮР, МТ..."
+                          className="w-full text-sm md:text-base font-semibold bg-gray-50 dark:bg-slate-800 border-2 border-blue-700/60 dark:border-blue-500/60 focus:border-blue-700 dark:focus:border-blue-500 text-slate-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 rounded-none px-4 py-3.5 outline-none transition-all"
+                          autoFocus
+                          id="instant_group_search_input"
+                        />
+                        {groupSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setGroupSearchQuery("")}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 hover:text-slate-700 dark:hover:text-slate-200 uppercase tracking-wider cursor-pointer"
+                          >
+                            Очистить
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-400 dark:text-slate-400 font-medium">
+                        Мгновенное открытие расписания в 1 клик без ожидания загрузки списков.
+                      </p>
 
-                {/* Step 3: Course */}
-                {id_Fak && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="space-y-2"
-                    id="step_course_container"
-                  >
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2 block flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">3</span>
-                      Учебный курс
-                    </label>
-                    <select
-                      value={Kurs}
-                      onChange={(e) => handleKursChange(e.target.value)}
-                      disabled={loading || coursesList.length === 0}
-                      className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
-                      id="select_kurs"
-                    >
-                      <option value="">-- Выберите курс --</option>
-                      {coursesList.map((c) => (
-                        <option key={c.value} value={c.value}>{c.label}</option>
-                      ))}
-                    </select>
-                  </motion.div>
-                )}
+                      {/* Dropdown Suggestions List */}
+                      {groupSearchQuery.trim() && (
+                        <div className="mt-3 max-h-72 overflow-y-auto border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 divide-y divide-gray-100 dark:divide-slate-700 shadow-lg" id="group_search_results">
+                          {filteredIndexedGroups.length > 0 ? (
+                            filteredIndexedGroups.map((g, idx) => (
+                              <button
+                                key={`${g.NamePodGrup}_${idx}`}
+                                type="button"
+                                onClick={() => handleSelectIndexedGroup(g)}
+                                className="w-full text-left p-3.5 hover:bg-blue-50 dark:hover:bg-slate-700/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer group"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="font-mono font-bold text-sm text-blue-700 dark:text-blue-400 group-hover:underline">
+                                    {g.shortName || g.groupLabel}
+                                  </span>
+                                  <span className="text-[11px] text-gray-500 dark:text-slate-400 line-clamp-1">
+                                    {g.fakLabel}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 rounded-none border border-gray-200 dark:border-slate-600">
+                                    {g.formaLabel}
+                                  </span>
+                                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 rounded-none border border-blue-200 dark:border-blue-800">
+                                    {g.Kurs} курс
+                                  </span>
+                                </div>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="p-4 text-center text-xs text-gray-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                              Группа не найдена. Проверьте правильность написания или воспользуйтесь каталогом ниже.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
-                {/* Step 4: Group / Subgroup */}
-                {Kurs && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="space-y-2"
-                    id="step_group_container"
-                  >
-                    <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2 block flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">4</span>
-                      Академическая группа
-                    </label>
-                    <select
-                      value={NamePodGrup}
-                      onChange={(e) => handleGroupSelectChange(e.target.value)}
-                      disabled={loading || groupsList.length === 0}
-                      className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
-                      id="select_group"
-                    >
-                      <option value="">-- Выберите группу --</option>
-                      {groupsList.map((g) => (
-                        <option key={g.value} value={g.value}>{shortenGroupName(g.label)}</option>
-                      ))}
-                    </select>
-                  </motion.div>
-                )}
-
-                {/* Loading status overlay */}
-                {loading && (
-                  <div className="flex items-center gap-3 bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-none p-4 text-xs text-gray-500 dark:text-slate-400 uppercase tracking-widest font-bold" id="loading_overlay">
-                    <div className="w-4 h-4 border-2 border-blue-700 dark:border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="animate-pulse">Обращение к служебному серверу СибУПК... Ожидайте</span>
+                    {/* Collapsible toggle for manual steps */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextState = !showManualSteps;
+                          setShowManualSteps(nextState);
+                          if (nextState && formsList.length === 0) {
+                            loadFormOptions();
+                          }
+                        }}
+                        className="text-xs font-bold text-gray-500 dark:text-slate-400 hover:text-blue-700 dark:hover:text-blue-400 uppercase tracking-wider flex items-center gap-1.5 cursor-pointer transition-colors"
+                        id="toggle_manual_steps_btn"
+                      >
+                        {showManualSteps ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        <span>{showManualSteps ? "Скрыть выбор по факультетам" : "Или выбрать по факультетам и курсам вручную"}</span>
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  {/* Manual 4-step wizard (only if toggled or already interacting) */}
+                  {(showManualSteps || id_Forma) && (
+                    <div className="p-6 md:p-8 space-y-6 bg-white dark:bg-slate-900" id="inputs_holder">
+                      {/* Step 1: Form of Education */}
+                      <div className="space-y-2" id="step_form_container">
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-3 block flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">1</span>
+                          Форма обучения
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={id_Forma}
+                            onChange={(e) => handleFormChange(e.target.value)}
+                            disabled={loading || formsList.length === 0}
+                            className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
+                            id="select_forma"
+                          >
+                            <option value="">-- Выберите форму обучения --</option>
+                            {formsList.map((f) => (
+                              <option key={f.value} value={f.value}>{f.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Step 2: Faculty */}
+                      {id_Forma && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="space-y-2"
+                          id="step_faculty_container"
+                        >
+                          <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2 block flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">2</span>
+                            Факультет / Отделение
+                          </label>
+                          <select
+                            value={id_Fak}
+                            onChange={(e) => handleFakChange(e.target.value)}
+                            disabled={loading || facultiesList.length === 0}
+                            className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
+                            id="select_fak"
+                          >
+                            <option value="">-- Выберите факультет --</option>
+                            {facultiesList.map((f) => (
+                              <option key={f.value} value={f.value}>{f.label}</option>
+                            ))}
+                          </select>
+                        </motion.div>
+                      )}
+
+                      {/* Step 3: Course */}
+                      {id_Fak && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="space-y-2"
+                          id="step_course_container"
+                        >
+                          <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2 block flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">3</span>
+                            Учебный курс
+                          </label>
+                          <select
+                            value={Kurs}
+                            onChange={(e) => handleKursChange(e.target.value)}
+                            disabled={loading || coursesList.length === 0}
+                            className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
+                            id="select_kurs"
+                          >
+                            <option value="">-- Выберите курс --</option>
+                            {coursesList.map((c) => (
+                              <option key={c.value} value={c.value}>{c.label}</option>
+                            ))}
+                          </select>
+                        </motion.div>
+                      )}
+
+                      {/* Step 4: Group / Subgroup */}
+                      {Kurs && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          className="space-y-2"
+                          id="step_group_container"
+                        >
+                          <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 mb-2 block flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-none bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-400 font-mono font-bold border border-blue-200 dark:border-blue-800 flex items-center justify-center">4</span>
+                            Академическая группа
+                          </label>
+                          <select
+                            value={NamePodGrup}
+                            onChange={(e) => handleGroupSelectChange(e.target.value)}
+                            disabled={loading || groupsList.length === 0}
+                            className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:bg-white dark:focus:bg-slate-800 text-sm outline-none transition-all"
+                            id="select_group"
+                          >
+                            <option value="">-- Выберите группу --</option>
+                            {groupsList.map((g) => (
+                              <option key={g.value} value={g.value}>{shortenGroupName(g.label)}</option>
+                            ))}
+                          </select>
+                        </motion.div>
+                      )}
+
+                      {/* Loading status overlay */}
+                      {loading && (
+                        <div className="flex items-center gap-3 bg-gray-50 dark:bg-slate-800/80 border border-gray-200 dark:border-slate-700 rounded-none p-4 text-xs text-gray-500 dark:text-slate-400 uppercase tracking-widest font-bold" id="loading_overlay">
+                          <div className="w-4 h-4 border-2 border-blue-700 dark:border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                          <span className="animate-pulse">Обращение к служебному серверу СибУПК... Ожидайте</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Teacher Wizard Header Banner */}
+                  <div className="bg-blue-700 p-6 md:p-8 text-white relative rounded-none">
+                    <div className="absolute right-6 top-6 opacity-5 pointer-events-none">
+                      <User className="w-24 h-24" />
+                    </div>
+                    <div className="flex items-center gap-2 bg-white/10 border border-white/20 px-3 py-1 rounded-none text-[10px] font-bold uppercase tracking-widest w-max mb-3">
+                      <User className="w-3.5 h-3.5 text-blue-200" />
+                      Преподавателям
+                    </div>
+                    <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight">Расписание преподавателей</h2>
+                    <p className="text-xs md:text-sm text-blue-100 mt-2 leading-relaxed font-medium uppercase tracking-wider opacity-90">
+                      Выберите кафедру или найдите преподавателя по фамилии для мгновенного просмотра расписания.
+                    </p>
+                  </div>
+
+                  {/* Teacher Picker Form */}
+                  <div className="p-6 md:p-8 space-y-6 bg-white dark:bg-slate-900" id="teacher_inputs_holder">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Department Filter */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 flex items-center gap-2">
+                          Кафедра / Подразделение
+                        </label>
+                        <select
+                          value={teacherDeptFilter}
+                          onChange={(e) => setTeacherDeptFilter(e.target.value)}
+                          className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-700/20 text-sm"
+                          id="select_teacher_department"
+                        >
+                          <option value="">-- Все кафедры ({departmentsList.length}) --</option>
+                          {departmentsList.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Teacher Search Input */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-slate-400 flex items-center gap-2">
+                          Поиск по фамилии
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={teacherSearchQuery}
+                            onChange={(e) => setTeacherSearchQuery(e.target.value)}
+                            placeholder="Например: Иванов, Петрова..."
+                            className="w-full p-3 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none focus:outline-none focus:ring-2 focus:ring-blue-700/20 text-sm"
+                            id="input_teacher_search"
+                          />
+                          {teacherSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setTeacherSearchQuery("")}
+                              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 hover:text-slate-700 dark:hover:text-slate-200 uppercase"
+                            >
+                              Очистить
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Teacher Results List */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest pb-1">
+                        <span>Найдено преподавателей: {filteredTeachers.length}</span>
+                        {teachersList.length === 0 && (
+                          <button
+                            type="button"
+                            onClick={loadTeachersList}
+                            className="text-blue-700 dark:text-blue-400 hover:underline uppercase text-[10px] cursor-pointer"
+                          >
+                            Обновить список
+                          </button>
+                        )}
+                      </div>
+
+                      {loading && teachersList.length === 0 ? (
+                        <div className="flex items-center justify-center p-8 gap-3 text-xs uppercase font-bold text-gray-500">
+                          <div className="w-5 h-5 border-2 border-blue-700 border-t-transparent rounded-full animate-spin"></div>
+                          Загрузка списка преподавателей с сервера СибУПК...
+                        </div>
+                      ) : filteredTeachers.length > 0 ? (
+                        <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-slate-700 divide-y divide-gray-100 dark:divide-slate-800" id="teachers_list_box">
+                          {filteredTeachers.map((t) => (
+                            <button
+                              key={`${t.fio}_${t.id_KodKaf}`}
+                              type="button"
+                              onClick={() => fetchTeacherSchedule(t)}
+                              className="w-full text-left p-3.5 hover:bg-blue-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between gap-4 cursor-pointer group"
+                              id={`teacher_item_${t.fio.replace(/\s+/g, '_')}`}
+                            >
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-blue-700 dark:group-hover:text-blue-400 uppercase tracking-tight">
+                                  {t.fio}
+                                </p>
+                                <p className="text-[11px] text-gray-400 dark:text-slate-400 mt-0.5 truncate">
+                                  {t.departmentName}
+                                </p>
+                              </div>
+                              <span className="text-xs font-bold text-blue-700 dark:text-blue-400 shrink-0 uppercase tracking-wider group-hover:translate-x-1 transition-transform">
+                                Открыть →
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="p-8 text-center bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 text-xs font-bold uppercase tracking-wider text-gray-400">
+                          Преподаватели не найдены. Попробуйте изменить параметры поиска или фильтр кафедры.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Static Disclaimer */}
               <div className="bg-gray-50 dark:bg-slate-800/50 border-t border-gray-200 dark:border-slate-800 p-5 flex items-start gap-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-slate-400 leading-relaxed">
@@ -1650,7 +2329,7 @@ export default function App() {
                                     {lesson.classroom && (
                                       <span className="text-[9px] font-bold bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 border border-gray-200 dark:border-slate-700 px-2 py-0.5 rounded-none flex items-center gap-1 uppercase tracking-wide">
                                         <MapPin className="w-2.5 h-2.5 text-gray-500 dark:text-slate-400" />
-                                        Ауд. {lesson.classroom.slice(2)}
+                                        {formatClassroom(lesson.classroom)}
                                       </span>
                                     )}
                                   </div>
@@ -1719,6 +2398,27 @@ export default function App() {
                       className="space-y-6"
                       id="full_week_stack"
                     >
+                      {/* Week selector toolbar for week view */}
+                      {weeksList.length > 0 && (
+                        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-3 rounded-none flex flex-col sm:flex-row items-center justify-between gap-3" id="week_view_selector_bar">
+                          <span className="text-xs font-bold text-gray-400 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-blue-700 dark:text-blue-400" />
+                            Учебная неделя:
+                          </span>
+                          <div className="w-full sm:w-auto flex-1 max-w-md">
+                            <select
+                              value={RangeNedel}
+                              onChange={(e) => ensureWeekLoaded(e.target.value)}
+                              className="w-full p-2 border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 font-semibold rounded-none cursor-pointer text-xs"
+                            >
+                              {weeksList.map((w) => (
+                                <option key={w.value} value={w.value}>{w.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
                       {currentActiveWeekDates.map((dateObj, dIdx) => {
                         const str = formatDateStr(dateObj);
                         
@@ -1730,7 +2430,8 @@ export default function App() {
                             (l) =>
                               l.subject.toLowerCase().includes(q) ||
                               l.teacher.toLowerCase().includes(q) ||
-                              l.classroom.toLowerCase().includes(q)
+                              l.classroom.toLowerCase().includes(q) ||
+                              (l.stream && l.stream.toLowerCase().includes(q))
                           );
                         }
 
@@ -1779,7 +2480,7 @@ export default function App() {
                                           {lesson.classroom && (
                                             <span className="text-[9px] font-bold text-gray-500 dark:text-slate-400 uppercase flex items-center gap-0.5">
                                               <MapPin className="w-2.5 h-2.5" />
-                                              Ауд. {lesson.classroom.slice(2)}
+                                              {formatClassroom(lesson.classroom)}
                                             </span>
                                           )}
                                         </div>
@@ -1790,6 +2491,12 @@ export default function App() {
                                           <p className="text-[10px] text-gray-400 dark:text-slate-400 mt-0.5 truncate flex items-center gap-1 select-none font-medium uppercase tracking-wider">
                                             <User className="w-3 h-3 text-gray-300 dark:text-slate-500 shrink-0" />
                                             {lesson.teacher}
+                                          </p>
+                                        )}
+                                        {lesson.stream && (
+                                          <p className="text-[10px] text-blue-700 dark:text-blue-400 mt-0.5 truncate flex items-center gap-1 select-none font-medium uppercase tracking-wider">
+                                            <Layers className="w-3 h-3 text-blue-500 dark:text-blue-400 shrink-0" />
+                                            {scheduleType === "teacher" ? `Группа: ${lesson.stream}` : `Поток: ${lesson.stream}`}
                                           </p>
                                         )}
                                       </div>
