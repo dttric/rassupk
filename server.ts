@@ -41,10 +41,21 @@ interface DepartmentInfo {
   name: string;
 }
 
-// In-memory caches with 2-hour TTL
-let cachedTeachers: TeacherInfo[] | null = null;
-let cachedDepartments: DepartmentInfo[] | null = null;
-let cachedTeachersTime = 0;
+// In-memory caches with disk fallback
+let cachedTeachers: TeacherInfo[] = [];
+let cachedDepartments: DepartmentInfo[] = [];
+try {
+  const teachersPath = path.join(process.cwd(), "src", "data", "teachers.json");
+  if (fs.existsSync(teachersPath)) {
+    const parsed = JSON.parse(fs.readFileSync(teachersPath, "utf-8"));
+    cachedTeachers = parsed.teachers || [];
+    cachedDepartments = parsed.departments || [];
+  }
+} catch (e) {
+  console.warn("Could not load teachers.json cache:", e);
+}
+
+let cachedTeachersTime = cachedTeachers.length > 0 ? Date.now() : 0;
 let isFetchingTeachers = false;
 
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
@@ -68,10 +79,10 @@ async function postSibupk(url: string, params: Record<string, string>): Promise<
 }
 
 async function fetchAllTeachers(): Promise<{ departments: DepartmentInfo[]; teachers: TeacherInfo[] }> {
-  if (cachedTeachers && cachedDepartments && Date.now() - cachedTeachersTime < CACHE_TTL_MS) {
+  if (cachedTeachers.length > 0 && cachedDepartments.length > 0 && Date.now() - cachedTeachersTime < CACHE_TTL_MS) {
     return { departments: cachedDepartments, teachers: cachedTeachers };
   }
-  if (isFetchingTeachers && cachedTeachers && cachedDepartments) {
+  if (isFetchingTeachers && cachedTeachers.length > 0 && cachedDepartments.length > 0) {
     return { departments: cachedDepartments, teachers: cachedTeachers };
   }
 
@@ -193,10 +204,9 @@ async function startServer() {
       let currentDate = "";
       let currentWeekType = "";
 
-      const scheduleTable = $("table").filter((_, el) => {
-        const text = $(el).text();
-        return text.includes("№ Пары") && text.includes("Дисциплина");
-      });
+      const scheduleTable = $("table.table, table").filter((_, el) => {
+        return $(el).find("table").length === 0 && $(el).text().includes("№ Пары") && $(el).text().includes("Дисциплина");
+      }).first();
 
       if (scheduleTable.length > 0) {
         scheduleTable.find("tr").each((_, row) => {
